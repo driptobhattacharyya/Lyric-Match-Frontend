@@ -7,22 +7,31 @@ Follow the following steps to run this on your system locally:
 
 ## Step 1: Setup the Backend
 
-First you need to setup the backend. Check out this repo:
+First you need to setup the backend. Check out [this repo](https://github.com/driptobhattacharyya/Lyric-Match-Backend).
 
 
-## Step 2: Clone on your device
+## Step 2: Initial setup
 
-On your terminal run the following commands:
-
+1. Clone the repo onto your local machine
+    ```shell
+   git clone https://github.com/driptobhattacharyya/Lyric-Match-Frontend.git
+   ```
+2. Install node modules
+    ```shell
+   npm install
+   ```
 
 ## Step 3: Connect with your Backend
 
-1. Find api.ts (under src -> services)
-2. Change the API_URL to the URL on which your backend is accessible (perhaps "localhost:5000")
+1. Find "api.ts" (under src -> services)
+2. Change the "API_URL" to the URL on which your backend is accessible (perhaps "localhost:5000")
 
 ## Step 4: Run the app
 
 Run the app using the following command on your terminal:
+ ```shell
+   npm run dev
+   ```
 
 
 
