@@ -19,4 +19,7 @@ export function writeJson(key: string, value: unknown): void {
 export const KEYS = {
   profile: 'lyric-match:profile:v1',
   settings: 'lyric-match:settings:v1',
+  meta: 'lyric-match:meta:v1',
+  /** The player's latest leaderboard entry, to highlight it. */
+  lastEntry: 'lyric-match:last-entry:v1',
 } as const

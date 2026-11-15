@@ -11,20 +11,23 @@ import {
   xpForGame,
   xpToNext,
 } from './progression'
-import { RULES } from './rules'
 import type { RoundResult } from './types'
 
 function result(i: number, correct: boolean, extra: Partial<RoundResult> = {}): RoundResult {
   return {
     index: i,
-    outcome: correct ? 'correct' : 'wrong',
-    answer: { songId: `s${i}`, title: `Song ${i}`, artist: 'Artist' },
+    outcome: correct ? 'correct' : 'timeout',
+    answer: { songId: `s${i}`, title: `Song ${i}`, artist: 'Artist', year: 2001, film: null },
+    language: 'en',
+    packId: 'en-pack',
     timeMs: 8000,
     hints: { lettersLevel: 0, artist: false },
-    wrongAttempts: 0,
+    wrongGuesses: [],
     streak: 0,
+    basePoints: correct ? 100 : 0,
+    multiplier: 1,
     points: correct ? 100 : 0,
-    breakdown: null,
+    receipt: `r${i}`,
     ...extra,
   }
 }
@@ -84,7 +87,7 @@ describe('daily streak', () => {
 describe('applyGame', () => {
   test('updates totals, best score, xp and first badges', () => {
     const results = [result(0, true, { streak: 1, timeMs: 2500 }), result(1, false), result(2, true, { streak: 1 })]
-    const u = applyGame(emptyProfile(), { difficulty: 'pro', results, score: 230 }, '2026-11-15')
+    const u = applyGame(emptyProfile(), { difficulty: 'pro', results, score: 230, totalRounds: 8 }, '2026-11-15')
     expect(u.xpGained).toBe(10 + 20 + 11)
     expect(u.profile.gamesPlayed).toBe(1)
     expect(u.profile.roundsPlayed).toBe(3)
@@ -97,16 +100,17 @@ describe('applyGame', () => {
   })
 
   test('perfect, no-hint game earns flawless, on_fire, ear_only and platinum', () => {
-    const results = Array.from({ length: RULES.rounds }, (_, i) => result(i, true, { streak: i + 1, points: 200 }))
-    const u = applyGame(emptyProfile(), { difficulty: 'easy', results, score: 1600 }, '2026-11-15')
-    expect(u.newBadges).toEqual(expect.arrayContaining(['flawless', 'on_fire', 'ear_only', 'platinum']))
+    const results = Array.from({ length: 8 }, (_, i) => result(i, true, { streak: i + 1, points: 200 }))
+    const u = applyGame(emptyProfile(), { difficulty: 'easy', results, score: 1600, totalRounds: 8 }, '2026-11-15')
+    expect(u.newBadges).toEqual(expect.arrayContaining(['flawless', 'on_fire', 'ear_only', 'platinum', 'no_sweat']))
+    expect(u.newBadges).not.toContain('polyglot')
     expect(u.newBadges).not.toContain('speed_demon')
     expect(u.levelAfter).toBeGreaterThan(u.levelBefore)
   })
 
   test('badges are only new once and best score is kept', () => {
-    const first = applyGame(emptyProfile(), { difficulty: 'easy', results: [result(0, true)], score: 300 }, '2026-11-14')
-    const second = applyGame(first.profile, { difficulty: 'easy', results: [result(0, true)], score: 100 }, '2026-11-15')
+    const first = applyGame(emptyProfile(), { difficulty: 'easy', results: [result(0, true)], score: 300, totalRounds: 8 }, '2026-11-14')
+    const second = applyGame(first.profile, { difficulty: 'easy', results: [result(0, true)], score: 100, totalRounds: 8 }, '2026-11-15')
     expect(second.newBadges).toEqual([])
     expect(second.newBest).toBe(false)
     expect(second.profile.bestScore.easy).toBe(300)
@@ -115,9 +119,27 @@ describe('applyGame', () => {
 
   test('three_day badge on the third consecutive day', () => {
     let p = emptyProfile()
-    for (const day of ['2026-11-13', '2026-11-14']) p = applyGame(p, { difficulty: 'easy', results: [], score: 0 }, day).profile
-    const u = applyGame(p, { difficulty: 'easy', results: [], score: 0 }, '2026-11-15')
+    for (const day of ['2026-11-13', '2026-11-14']) p = applyGame(p, { difficulty: 'easy', results: [], score: 0, totalRounds: 8 }, day).profile
+    const u = applyGame(p, { difficulty: 'easy', results: [], score: 0, totalRounds: 8 }, '2026-11-15')
     expect(u.newBadges).toContain('three_day')
+  })
+})
+
+describe('more badges', () => {
+  test('polyglot needs correct answers in two languages', () => {
+    const results = [result(0, true), result(1, true, { language: 'hi' })]
+    const u = applyGame(emptyProfile(), { difficulty: 'easy', results, score: 200, totalRounds: 8 }, '2026-11-15')
+    expect(u.newBadges).toContain('polyglot')
+  })
+
+  test('a lost heart or an incomplete game blocks no_sweat and flawless', () => {
+    const all = Array.from({ length: 8 }, (_, i) => result(i, true, { streak: i + 1 }))
+    all[3] = { ...all[3], wrongGuesses: ['nope'] }
+    const u = applyGame(emptyProfile(), { difficulty: 'pro', results: all, score: 800, totalRounds: 8 }, '2026-11-15')
+    expect(u.newBadges).not.toContain('no_sweat')
+    expect(u.newBadges).toContain('flawless')
+    const short = applyGame(emptyProfile(), { difficulty: 'pro', results: all.slice(0, 5), score: 500, totalRounds: 8 }, '2026-11-15')
+    expect(short.newBadges).not.toContain('flawless')
   })
 })
 

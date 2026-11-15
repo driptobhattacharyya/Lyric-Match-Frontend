@@ -1,4 +1,3 @@
-import { RULES } from './rules'
 import type { Difficulty, RoundResult } from './types'
 
 /** Long-term player progress, persisted in localStorage. */
@@ -118,6 +117,8 @@ export type BadgeId =
   | 'speed_demon'
   | 'platinum'
   | 'three_day'
+  | 'polyglot'
+  | 'no_sweat'
 
 export interface BadgeDef {
   id: BadgeId
@@ -131,11 +132,7 @@ export const PLATINUM_SCORE = 1000
 export const BADGES: readonly BadgeDef[] = [
   { id: 'first_note', name: 'First Note', description: 'Name your first song.' },
   { id: 'on_fire', name: 'On Fire', description: 'Get 5 right in a row.' },
-  {
-    id: 'flawless',
-    name: 'Flawless',
-    description: `Get all ${RULES.rounds} rounds of a game right.`,
-  },
+  { id: 'flawless', name: 'Flawless', description: 'Get every round of a game right.' },
   {
     id: 'ear_only',
     name: 'Ear Only',
@@ -152,35 +149,45 @@ export const BADGES: readonly BadgeDef[] = [
     description: `Score ${PLATINUM_SCORE.toLocaleString('en-US')}+ points in one game.`,
   },
   { id: 'three_day', name: 'Groove Habit', description: 'Play 3 days in a row.' },
+  { id: 'polyglot', name: 'Polyglot', description: 'Name songs in two languages in one game.' },
+  { id: 'no_sweat', name: 'No Sweat', description: 'Finish a full game without losing a heart.' },
 ]
 
 export interface GameSummary {
   difficulty: Difficulty
   results: RoundResult[]
   score: number
+  /** Rounds a full game has (meta.roundsPerGame). */
+  totalRounds: number
 }
 
-export function summarize(results: RoundResult[]) {
-  const correct = results.filter((r) => r.outcome === 'correct').length
+export function summarize(results: RoundResult[], totalRounds: number) {
+  const won = results.filter((r) => r.outcome === 'correct')
+  const correct = won.length
   const bestStreak = results.reduce((m, r) => Math.max(m, r.streak), 0)
-  const perfect = results.length === RULES.rounds && correct === RULES.rounds
+  const complete = results.length >= totalRounds
+  const perfect = complete && correct === results.length
   const hintsUsed = results.some((r) => r.hints.lettersLevel > 0 || r.hints.artist)
-  const fastest = results
-    .filter((r) => r.outcome === 'correct')
-    .reduce((m, r) => Math.min(m, r.timeMs), Infinity)
-  return { correct, bestStreak, perfect, hintsUsed, fastest }
+  const fastest = won.reduce((m, r) => Math.min(m, r.timeMs), Infinity)
+  const languages = new Set(won.map((r) => r.language)).size
+  const heartsLost =
+    results.reduce((n, r) => n + r.wrongGuesses.length, 0) +
+    results.filter((r) => r.outcome === 'timeout' || r.outcome === 'skipped').length
+  return { correct, bestStreak, complete, perfect, hintsUsed, fastest, languages, heartsLost }
 }
 
 function earnedBadges(game: GameSummary, daily: Profile['daily']): BadgeId[] {
-  const s = summarize(game.results)
+  const s = summarize(game.results, game.totalRounds)
   const out: BadgeId[] = []
   if (s.correct > 0) out.push('first_note')
   if (s.bestStreak >= 5) out.push('on_fire')
   if (s.perfect) out.push('flawless')
-  if (game.results.length === RULES.rounds && !s.hintsUsed) out.push('ear_only')
+  if (s.complete && !s.hintsUsed) out.push('ear_only')
   if (s.fastest < SPEED_DEMON_MS) out.push('speed_demon')
   if (game.score >= PLATINUM_SCORE) out.push('platinum')
   if (daily.current >= 3) out.push('three_day')
+  if (s.languages >= 2) out.push('polyglot')
+  if (s.complete && s.heartsLost === 0) out.push('no_sweat')
   return out
 }
 
@@ -197,7 +204,7 @@ export interface ProgressUpdate {
 
 /** Pure: fold one finished game into the profile. */
 export function applyGame(profile: Profile, game: GameSummary, today: string): ProgressUpdate {
-  const s = summarize(game.results)
+  const s = summarize(game.results, game.totalRounds)
   const xpGained = xpForGame(game.score, s.correct, s.perfect)
   const daily = advanceDaily(profile.daily, today)
   const earned = earnedBadges(game, daily)

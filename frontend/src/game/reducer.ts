@@ -1,28 +1,31 @@
 /**
  * The whole game as one pure state machine.
  *
- * Async work is *described* in state (`request` / `nextRound`, each tagged with a
- * unique `seq`) and performed by an effect hook, which dispatches the result
- * with the same `seq`. Results whose `seq` no longer matches are ignored, so a
- * late response can never touch a newer round, and nothing advances on a timer:
+ * Async work is *described* in state (`request`, tagged with a unique `seq`)
+ * and performed by an effect hook, which dispatches the result with the same
+ * `seq`. Results whose `seq` (and round id) no longer match are ignored, so a
+ * late response can never touch a newer round. Nothing advances on a timer:
  * rounds only move forward on explicit actions.
  *
  * Time is passed in via `at` (epoch ms) on actions, so the reducer stays pure.
  */
 import { applyGame, emptyProfile, type Profile, type ProgressUpdate } from './progression'
-import { RULES, roundDurationMs, scoreCorrect } from './rules'
+import { RULES, applyStreak, streakMultiplier } from './rules'
 import type {
   Answer,
   ApiFailure,
+  ApiMode,
   CheckResponse,
   Difficulty,
   HintKind,
   HintResponse,
   HintUsage,
+  RevealResponse,
   RoundOutcome,
   RoundPayload,
   RoundResult,
 } from './types'
+import { API_MODE } from './types'
 
 export type Phase =
   | 'idle'
@@ -37,14 +40,15 @@ export type Phase =
 export type ServerStatus = 'unknown' | 'ready' | 'down'
 
 export interface Round {
-  /** Unique per fetched round (the seq of the fetch), used to validate events. */
+  /** Unique per fetched round (the seq of its fetch), used to validate responses. */
   id: number
   index: number
   data: RoundPayload
+  /** Current token: replaced by every hint response. */
+  token: string
   mask: string
   artist: string | null
   hints: HintUsage
-  wrongAttempts: number
   wrongGuesses: string[]
   durationMs: number
   /** Authoritative time left while the clock is stopped (`deadline === null`). */
@@ -53,40 +57,34 @@ export interface Round {
   deadline: number | null
 }
 
+/** Outcomes that end a round through POST /api/rounds/reveal. */
+export type MissOutcome = Exclude<RoundOutcome, 'correct'>
+
 export type Request =
   | { kind: 'health' }
+  | { kind: 'round'; index: number; mode: ApiMode; packs: string[]; exclude: string[] }
   | { kind: 'hint'; roundId: number; token: string; hint: HintKind; level: number }
   | { kind: 'check'; roundId: number; token: string; guess: string }
-  | {
-      kind: 'reveal'
-      roundId: number
-      token: string
-      outcome: RoundOutcome
-    }
+  | { kind: 'reveal'; roundId: number; token: string; outcome: MissOutcome }
 
 export interface InFlight {
   seq: number
   req: Request
 }
 
-export interface NextRound {
-  seq: number
-  index: number
-  exclude: string[]
-  status: 'pending' | 'ready'
-  data: RoundPayload | null
-}
-
-/** What to do when the player presses Retry on the error screen. */
-export type RetryPlan =
-  | { kind: 'request'; req: Request }
-  | { kind: 'round'; index: number }
-
 export interface GameError {
   failure: ApiFailure
-  retry: RetryPlan
+  /** Request to send again when the player presses Retry. */
+  retry: Request
   /** The round was voided (its token expired) and will be replaced for free. */
   voided: boolean
+}
+
+export interface GameConfig {
+  difficulty: Difficulty
+  /** Pack ids to draw from; empty means all packs. */
+  packs: string[]
+  totalRounds: number
 }
 
 export interface State {
@@ -94,15 +92,15 @@ export interface State {
   server: ServerStatus
   seq: number
   request: InFlight | null
-  nextRound: NextRound | null
   /** Work to resume once a warm-up health check succeeds. */
-  resume: RetryPlan | null
-  difficulty: Difficulty
+  resume: Request | null
+  config: GameConfig
   hearts: number
   streak: number
   score: number
   round: Round | null
   results: RoundResult[]
+  /** Song ids seen this session (kept across games), sent as `exclude`. */
   seen: string[]
   error: GameError | null
   profile: Profile
@@ -110,40 +108,38 @@ export interface State {
 }
 
 export type Action =
-  | { type: 'START'; difficulty: Difficulty; at: number }
-  | { type: 'HEALTH_OK'; seq: number; at: number }
+  | { type: 'START'; difficulty: Difficulty; packs: string[]; totalRounds: number; at: number }
+  | { type: 'HEALTH_OK'; seq: number }
   | { type: 'ROUND_OK'; seq: number; data: RoundPayload; at: number }
-  | { type: 'ROUND_FAIL'; seq: number; failure: ApiFailure }
   | { type: 'HINT'; hint: HintKind; at: number }
   | { type: 'HINT_OK'; seq: number; response: HintResponse; at: number }
   | { type: 'SUBMIT'; guess: string; at: number }
   | { type: 'CHECK_OK'; seq: number; response: CheckResponse; at: number }
   | { type: 'TIME_UP'; roundId: number; at: number }
-  | { type: 'GIVE_UP'; at: number }
-  | { type: 'REVEAL_OK'; seq: number; answer: Answer }
+  | { type: 'SKIP'; at: number }
+  | { type: 'REVEAL_OK'; seq: number; response: RevealResponse }
   | { type: 'REQUEST_FAIL'; seq: number; failure: ApiFailure }
-  | { type: 'CONTINUE'; at: number; today: string }
-  | { type: 'RETRY'; at: number }
+  | { type: 'CONTINUE'; today: string }
+  | { type: 'RETRY' }
   | { type: 'QUIT' }
   /** Re-check the server from the start screen. */
   | { type: 'PING' }
 
-export function initialState(profile: Profile = emptyProfile()): State {
+export function initialState(profile: Profile = emptyProfile(), seen: string[] = []): State {
   return {
     phase: 'idle',
     server: 'unknown',
     seq: 1,
     // Warm the (possibly sleeping) backend as soon as the app loads.
     request: { seq: 1, req: { kind: 'health' } },
-    nextRound: null,
     resume: null,
-    difficulty: 'easy',
+    config: { difficulty: 'easy', packs: [], totalRounds: RULES.defaultRounds },
     hearts: RULES.hearts,
     streak: 0,
     score: 0,
     round: null,
     results: [],
-    seen: [],
+    seen,
     error: null,
     profile,
     progress: null,
@@ -174,288 +170,260 @@ function issue(state: State, req: Request): State {
   return { ...state, seq, request: { seq, req } }
 }
 
-function fetchRound(state: State, index: number, phase: Phase): State {
-  const seq = state.seq + 1
+function roundRequest(state: State, index: number): Request {
   return {
-    ...state,
-    seq,
-    phase,
-    nextRound: { seq, index, exclude: [...state.seen], status: 'pending', data: null },
+    kind: 'round',
+    index,
+    mode: API_MODE[state.config.difficulty],
+    packs: state.config.packs,
+    exclude: state.seen.slice(-RULES.maxExclude),
   }
 }
 
-function beginRound(state: State, seq: number, index: number, data: RoundPayload, at: number): State {
-  const durationMs = roundDurationMs(state.difficulty)
+function phaseFor(req: Request): Phase {
+  switch (req.kind) {
+    case 'health':
+      return 'warming'
+    case 'round':
+      return 'loading'
+    case 'hint':
+      return 'guessing'
+    case 'check':
+    case 'reveal':
+      return 'checking'
+  }
+}
+
+function run(state: State, req: Request): State {
+  return { ...issue(state, req), phase: phaseFor(req), error: null }
+}
+
+function beginRound(state: State, id: number, index: number, data: RoundPayload, at: number): State {
+  const fallback = RULES.defaultRoundSeconds[data.mode] ?? RULES.defaultRoundSeconds.type
+  const seconds = data.timeLimitSeconds > 0 ? data.timeLimitSeconds : fallback
+  const durationMs = seconds * 1000
   const round: Round = {
-    id: seq,
+    id,
     index,
     data,
+    token: data.roundToken,
     mask: data.titleMask,
     artist: null,
     hints: { lettersLevel: 0, artist: false },
-    wrongAttempts: 0,
     wrongGuesses: [],
     durationMs,
     remainingMs: durationMs,
     deadline: at + durationMs,
   }
-  return { ...state, phase: 'guessing', round, nextRound: null, error: null }
+  return { ...state, phase: 'guessing', request: null, round, error: null, server: 'ready' }
 }
 
-function warm(state: State, resumePlan: RetryPlan | null): State {
+function warm(state: State, plan: Request | null): State {
   const pending = state.request?.req.kind === 'health'
   const next = pending ? state : issue(state, { kind: 'health' })
-  return { ...next, phase: 'warming', resume: resumePlan }
+  return { ...next, phase: 'warming', resume: plan, error: null }
 }
 
-function runPlan(state: State, plan: RetryPlan): State {
-  if (plan.kind === 'round') return fetchRound({ ...state, error: null }, plan.index, 'loading')
-  const phase: Phase = plan.req.kind === 'hint' ? 'guessing' : 'checking'
-  return { ...issue(state, plan.req), phase, error: null }
-}
-
-function fail(state: State, failure: ApiFailure, retry: RetryPlan): State {
+function fail(state: State, failure: ApiFailure, retry: Request, voided = false): State {
+  const offline = failure.code === 'network' || failure.code === 'timeout'
   return {
     ...state,
     phase: 'error',
     request: null,
-    nextRound: null,
-    // Rounds are always paused while a request is in flight, so the clock is frozen here.
-    round: state.round,
-    error: { failure, retry, voided: false },
-    server: failure.code === 'network' || failure.code === 'timeout' ? 'down' : state.server,
+    // The clock is always stopped while a request is in flight, so it stays frozen here.
+    round: voided ? null : state.round,
+    error: { failure, retry, voided },
+    server: offline ? 'down' : state.server,
   }
 }
 
-function finishRound(state: State, outcome: RoundOutcome, answer: Answer): State {
+function finishRound(state: State, outcome: RoundOutcome, answer: Answer, basePoints: number, receipt: string): State {
   const round = state.round
   if (!round) return state
   const correct = outcome === 'correct'
   const streak = correct ? state.streak + 1 : 0
-  const breakdown = correct
-    ? scoreCorrect({
-        difficulty: state.difficulty,
-        remainingMs: round.remainingMs,
-        durationMs: round.durationMs,
-        hints: round.hints,
-        wrongAttempts: round.wrongAttempts,
-        streak,
-      })
-    : null
-  const points = breakdown?.total ?? 0
+  const points = correct ? applyStreak(basePoints, streak) : 0
   const result: RoundResult = {
     index: round.index,
     outcome,
     answer,
+    language: round.data.language,
+    packId: round.data.packId,
     timeMs: round.durationMs - round.remainingMs,
     hints: round.hints,
-    wrongAttempts: round.wrongAttempts,
+    wrongGuesses: round.wrongGuesses,
     streak,
+    basePoints: correct ? basePoints : 0,
+    multiplier: correct ? streakMultiplier(streak) : 1,
     points,
-    breakdown,
+    receipt,
   }
-  const hearts = correct ? state.hearts : Math.max(0, state.hearts - 1)
-  const seen = state.seen.includes(answer.songId) ? state.seen : [...state.seen, answer.songId]
-  const next: State = {
+  // A wrong guess already cost its heart; running out of time or skipping costs one now.
+  const heartLost = outcome === 'timeout' || outcome === 'skipped'
+  const seen = state.seen.includes(answer.songId) ? state.seen : [...state.seen, answer.songId].slice(-RULES.maxExclude)
+  return {
     ...state,
     phase: 'feedback',
     request: null,
-    hearts,
+    hearts: heartLost ? Math.max(0, state.hearts - 1) : state.hearts,
     streak,
     score: state.score + points,
     results: [...state.results, result],
     seen,
     round: { ...round, deadline: null },
   }
-  // Prefetch the next round while the player reads the feedback.
-  return isGameOver(next) ? next : fetchRound(next, round.index + 1, 'feedback')
 }
 
 export function isGameOver(state: State): boolean {
-  return state.hearts <= 0 || state.results.length >= RULES.rounds
+  return state.hearts <= 0 || state.results.length >= state.config.totalRounds
 }
 
-function startGame(state: State, difficulty: Difficulty): State {
+function startGame(state: State, config: GameConfig): State {
   const fresh: State = {
     ...state,
-    difficulty,
+    config,
     hearts: RULES.hearts,
     streak: 0,
     score: 0,
     round: null,
     results: [],
-    seen: [],
     error: null,
     progress: null,
-    nextRound: null,
     resume: null,
   }
-  if (fresh.server === 'ready') return fetchRound(fresh, 0, 'loading')
-  return warm(fresh, { kind: 'round', index: 0 })
+  const first = roundRequest(fresh, 0)
+  if (fresh.server === 'ready') return run(fresh, first)
+  return warm(fresh, first)
 }
 
-/** Accept only the response to the request currently in flight. */
-function matches(state: State, seq: number, kind: Request['kind']): boolean {
-  return state.request?.seq === seq && state.request.req.kind === kind
+/** The in-flight request, if it is the one `seq` answers and of the given kind. */
+function inflight<K extends Request['kind']>(state: State, seq: number, kind: K): Extract<Request, { kind: K }> | null {
+  const r = state.request
+  if (!r || r.seq !== seq || r.req.kind !== kind) return null
+  return r.req as Extract<Request, { kind: K }>
+}
+
+/** The current round, if `roundId` still names it. */
+function currentRound(state: State, roundId: number): Round | null {
+  return state.round && state.round.id === roundId ? state.round : null
 }
 
 export function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'START': {
       if (state.phase !== 'idle' && state.phase !== 'results') return state
-      return startGame(state, action.difficulty)
+      const totalRounds = Math.max(1, Math.floor(action.totalRounds) || RULES.defaultRounds)
+      return startGame(state, { difficulty: action.difficulty, packs: [...action.packs], totalRounds })
     }
 
     case 'HEALTH_OK': {
-      if (!matches(state, action.seq, 'health')) return state
+      if (!inflight(state, action.seq, 'health')) return state
       const ready: State = { ...state, server: 'ready', request: null }
       if (state.phase !== 'warming') return ready
-      const plan = state.resume ?? { kind: 'round', index: state.results.length }
-      return runPlan({ ...ready, resume: null }, plan)
+      const plan = state.resume ?? roundRequest(state, state.results.length)
+      return run({ ...ready, resume: null }, plan)
     }
 
     case 'ROUND_OK': {
-      const nr = state.nextRound
-      if (!nr || nr.seq !== action.seq || nr.status !== 'pending') return state
-      const s: State = { ...state, server: 'ready' }
-      if (state.phase === 'loading') return beginRound(s, nr.seq, nr.index, action.data, action.at)
-      if (state.phase === 'feedback') {
-        return { ...s, nextRound: { ...nr, status: 'ready', data: action.data } }
-      }
-      return state
-    }
-
-    case 'ROUND_FAIL': {
-      const nr = state.nextRound
-      if (!nr || nr.seq !== action.seq) return state
-      // A failed prefetch stays silent; Continue will fetch again.
-      if (state.phase === 'feedback') return { ...state, nextRound: null }
-      if (state.phase !== 'loading') return state
-      return fail(state, action.failure, { kind: 'round', index: nr.index })
+      const req = inflight(state, action.seq, 'round')
+      if (!req || state.phase !== 'loading') return state
+      return beginRound(state, action.seq, req.index, action.data, action.at)
     }
 
     case 'HINT': {
       const r = state.round
       if (state.phase !== 'guessing' || !r || state.request) return state
       if (action.hint === 'artist' && r.hints.artist) return state
-      if (action.hint === 'letters' && r.hints.lettersLevel >= 3) return state
+      if (action.hint === 'letters' && r.hints.lettersLevel >= RULES.maxLetterLevel) return state
       if (remainingAt(r, action.at) <= 0) return state
       const level = action.hint === 'letters' ? r.hints.lettersLevel + 1 : 1
       return issue(
         { ...state, round: pause(r, action.at) },
-        { kind: 'hint', roundId: r.id, token: r.data.roundToken, hint: action.hint, level },
+        { kind: 'hint', roundId: r.id, token: r.token, hint: action.hint, level },
       )
     }
 
     case 'HINT_OK': {
-      const r = state.round
-      if (!matches(state, action.seq, 'hint') || !r || state.request?.req.kind !== 'hint') return state
-      const req = state.request.req
-      if (req.roundId !== r.id) return state
+      const req = inflight(state, action.seq, 'hint')
+      const r = req && currentRound(state, req.roundId)
+      if (!req || !r) return state
       const res = action.response
       const updated: Round =
         res.kind === 'letters'
           ? {
               ...r,
+              token: res.roundToken,
               mask: res.titleMask,
-              hints: { ...r.hints, lettersLevel: Math.min(3, req.level) as HintUsage['lettersLevel'] },
+              hints: { ...r.hints, lettersLevel: Math.min(RULES.maxLetterLevel, req.level) as HintUsage['lettersLevel'] },
             }
-          : { ...r, artist: res.artist, hints: { ...r.hints, artist: true } }
+          : { ...r, token: res.roundToken, artist: res.artist, hints: { ...r.hints, artist: true } }
       return { ...state, request: null, phase: 'guessing', round: resume(updated, action.at) }
     }
 
     case 'SUBMIT': {
       const r = state.round
-      const guess = action.guess.trim()
+      const guess = action.guess.trim().slice(0, 200)
       if (state.phase !== 'guessing' || !r || state.request || !guess) return state
       if (remainingAt(r, action.at) <= 0) return state
-      return {
-        ...issue({ ...state, round: pause(r, action.at) }, {
-          kind: 'check',
-          roundId: r.id,
-          token: r.data.roundToken,
-          guess,
-        }),
-        phase: 'checking',
-      }
+      return run({ ...state, round: pause(r, action.at) }, { kind: 'check', roundId: r.id, token: r.token, guess })
     }
 
     case 'CHECK_OK': {
-      const r = state.round
-      if (!matches(state, action.seq, 'check') || !r || state.request?.req.kind !== 'check') return state
-      const guess = state.request.req.guess
-      if (action.response.correct) {
-        if (action.response.answer) return finishRound(state, 'correct', action.response.answer)
-        // Contract says the answer comes with a correct check; fetch it if not.
-        return issue(state, { kind: 'reveal', roundId: r.id, token: r.data.roundToken, outcome: 'correct' })
+      const req = inflight(state, action.seq, 'check')
+      const r = req && currentRound(state, req.roundId)
+      if (!req || !r) return state
+      const res = action.response
+      if (res.correct && res.answer && res.receipt) {
+        return finishRound(state, 'correct', res.answer, res.points, res.receipt)
       }
-      const wrong: Round = {
-        ...r,
-        wrongAttempts: r.wrongAttempts + 1,
-        wrongGuesses: [...r.wrongGuesses, guess],
+      // Wrong: costs a heart, the round carries on unless that was the last heart.
+      // The answer streak is untouched: it counts rounds, exactly like the server's recompute.
+      const wrong: Round = { ...r, wrongGuesses: [...r.wrongGuesses, req.guess] }
+      const hearts = Math.max(0, state.hearts - 1)
+      const next: State = { ...state, hearts, round: wrong }
+      if (hearts === 0) {
+        return run(next, { kind: 'reveal', roundId: r.id, token: r.token, outcome: 'wrong' })
       }
-      const outOfTries = wrong.wrongAttempts >= RULES.attempts[state.difficulty]
-      if (outOfTries || wrong.remainingMs <= 0) {
-        return issue(
-          { ...state, round: wrong },
-          { kind: 'reveal', roundId: r.id, token: r.data.roundToken, outcome: outOfTries ? 'wrong' : 'timeout' },
-        )
-      }
-      return { ...state, request: null, phase: 'guessing', round: resume(wrong, action.at) }
+      return { ...next, request: null, phase: 'guessing', round: resume(wrong, action.at) }
     }
 
     case 'TIME_UP': {
-      const r = state.round
-      if (state.phase !== 'guessing' || !r || r.id !== action.roundId || r.deadline === null) return state
-      if (state.request) return state
+      const r = currentRound(state, action.roundId)
+      if (state.phase !== 'guessing' || !r || r.deadline === null || state.request) return state
       if (action.at < r.deadline) return state
-      return {
-        ...issue(
-          { ...state, round: { ...r, remainingMs: 0, deadline: null } },
-          { kind: 'reveal', roundId: r.id, token: r.data.roundToken, outcome: 'timeout' },
-        ),
-        phase: 'checking',
-      }
+      return run(
+        { ...state, round: { ...r, remainingMs: 0, deadline: null } },
+        { kind: 'reveal', roundId: r.id, token: r.token, outcome: 'timeout' },
+      )
     }
 
-    case 'GIVE_UP': {
+    case 'SKIP': {
       const r = state.round
       if (state.phase !== 'guessing' || !r || state.request) return state
-      return {
-        ...issue(
-          { ...state, round: pause(r, action.at) },
-          { kind: 'reveal', roundId: r.id, token: r.data.roundToken, outcome: 'gaveup' },
-        ),
-        phase: 'checking',
-      }
+      return run({ ...state, round: pause(r, action.at) }, { kind: 'reveal', roundId: r.id, token: r.token, outcome: 'skipped' })
     }
 
     case 'REVEAL_OK': {
-      const r = state.round
-      if (!matches(state, action.seq, 'reveal') || !r || state.request?.req.kind !== 'reveal') return state
-      if (state.request.req.roundId !== r.id) return state
-      return finishRound(state, state.request.req.outcome, action.answer)
+      const req = inflight(state, action.seq, 'reveal')
+      if (!req || !currentRound(state, req.roundId)) return state
+      const res = action.response
+      return finishRound(state, req.outcome, res.answer, 0, res.receipt)
     }
 
     case 'REQUEST_FAIL': {
-      const inflight = state.request
-      if (!inflight || inflight.seq !== action.seq) return state
-      const req = inflight.req
+      const current = state.request
+      if (!current || current.seq !== action.seq) return state
+      const req = current.req
       if (req.kind === 'health') {
         const down: State = { ...state, server: 'down', request: null }
         if (state.phase !== 'warming') return down
-        return {
-          ...down,
-          phase: 'error',
-          error: { failure: action.failure, retry: state.resume ?? { kind: 'round', index: 0 }, voided: false },
-        }
+        return fail(down, action.failure, state.resume ?? roundRequest(state, state.results.length))
       }
-      if (action.failure.code === 'invalid_token' && state.round) {
+      if (action.failure.code === 'invalid_token' && req.kind !== 'round' && state.round) {
         // The round can no longer be resolved: void it and deal a fresh one, no penalty.
-        const s = fail(state, action.failure, { kind: 'round', index: state.round.index })
-        return { ...s, round: null, error: s.error && { ...s.error, voided: true } }
+        return fail(state, action.failure, roundRequest(state, state.round.index), true)
       }
-      return fail(state, action.failure, { kind: 'request', req })
+      return fail(state, action.failure, req)
     }
 
     case 'CONTINUE': {
@@ -463,34 +431,26 @@ export function reducer(state: State, action: Action): State {
       if (isGameOver(state)) {
         const progress = applyGame(
           state.profile,
-          { difficulty: state.difficulty, results: state.results, score: state.score },
+          {
+            difficulty: state.config.difficulty,
+            results: state.results,
+            score: state.score,
+            totalRounds: state.config.totalRounds,
+          },
           action.today,
         )
-        return {
-          ...state,
-          phase: 'results',
-          round: null,
-          nextRound: null,
-          request: null,
-          profile: progress.profile,
-          progress,
-        }
+        return { ...state, phase: 'results', round: null, request: null, profile: progress.profile, progress }
       }
-      const nr = state.nextRound
-      if (nr?.status === 'ready' && nr.data) return beginRound(state, nr.seq, nr.index, nr.data, action.at)
-      if (nr?.status === 'pending') return { ...state, phase: 'loading' }
-      return fetchRound(state, state.results.length, 'loading')
+      return run({ ...state, round: null }, roundRequest(state, state.results.length))
     }
 
     case 'RETRY': {
       if (state.phase !== 'error' || !state.error) return state
       const plan = state.error.retry
       const code = state.error.failure.code
-      // If the server looks asleep, wake it with a patient health check first.
-      if (code === 'network' || code === 'timeout') {
-        return warm({ ...state, error: null }, plan)
-      }
-      return runPlan(state, plan)
+      // If the server looks asleep or gone, wake it with a patient health check first.
+      if (code === 'network' || code === 'timeout') return warm(state, plan)
+      return run(state, plan)
     }
 
     case 'PING': {
@@ -503,7 +463,6 @@ export function reducer(state: State, action: Action): State {
         ...state,
         phase: 'idle',
         request: state.request?.req.kind === 'health' ? state.request : null,
-        nextRound: null,
         resume: null,
         round: null,
         error: null,
