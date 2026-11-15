@@ -1,7 +1,13 @@
 import pytest
 
+from conftest import FIXTURE_CATALOG
+
 from lyric_match.hints import letters_hint, title_mask
-from lyric_match.songs import RAW_SONGS
+from lyric_match.songs import read_catalog
+
+RAW_SONGS = [
+    (e["title"], e["artist"]) for r in read_catalog(FIXTURE_CATALOG)[1] for e in r.entries
+] + [("Shake It Off", "x"), ("Don't Start Now", "x"), ("Pal", "x"), ("Tum Hi Ho", "x")]
 
 
 def revealed(mask):

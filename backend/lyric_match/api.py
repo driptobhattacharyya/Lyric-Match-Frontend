@@ -176,9 +176,7 @@ def create_blueprint(limiter: Limiter) -> Blueprint:
 
         options = None
         if mode == "choice":
-            options = state.catalogue.distractor_titles(song, CHOICE_COUNT - 1, _rng) + [
-                song.title
-            ]
+            options = state.catalogue.distractor_titles(song, CHOICE_COUNT - 1, _rng) + [song.title]
             _rng.shuffle(options)
 
         time_limit = int(current_app.config["ROUND_SECONDS"][mode])
@@ -239,9 +237,7 @@ def create_blueprint(limiter: Limiter) -> Blueprint:
         if not is_correct(guess, claims.title, claims.language):
             return jsonify({"correct": False, "answer": None, "points": 0, "receipt": None})
         elapsed = time.time() - claims.issued_at
-        points = round_points(
-            elapsed, claims.time_limit, claims.letters_level, claims.artist_hint
-        )
+        points = round_points(elapsed, claims.time_limit, claims.letters_level, claims.artist_hint)
         log.info("round_correct song_id=%s points=%d", claims.song_id, points)
         return jsonify(
             {
@@ -349,4 +345,3 @@ def create_blueprint(limiter: Limiter) -> Blueprint:
         )
 
     return bp
-

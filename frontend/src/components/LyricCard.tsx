@@ -1,7 +1,7 @@
 import { m } from 'motion/react'
 
 /** The lyric snippet, line by line, with a staggered reveal. */
-export function LyricCard({ lyrics }: { lyrics: string }) {
+export function LyricCard({ lyrics, label }: { lyrics: string; label?: string }) {
   const lines = lyrics
     .split(/\r?\n/)
     .map((l) => l.trim())
@@ -14,6 +14,11 @@ export function LyricCard({ lyrics }: { lyrics: string }) {
       >
         &ldquo;
       </span>
+      {label && (
+        <figcaption className="absolute top-3 right-4 max-w-[70%] truncate rounded-full bg-plum px-2.5 py-0.5 font-display text-xs font-semibold tracking-wide text-mist">
+          {label}
+        </figcaption>
+      )}
       <blockquote className="relative space-y-1.5" aria-label="Lyric snippet">
         {lines.map((line, i) => (
           <m.p

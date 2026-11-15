@@ -189,9 +189,7 @@ class OpenAIGenerator:
             if self._client is None:
                 from openai import OpenAI
 
-                self._client = OpenAI(
-                    api_key=self._api_key, timeout=self._timeout, max_retries=1
-                )
+                self._client = OpenAI(api_key=self._api_key, timeout=self._timeout, max_retries=1)
             return self._client
 
     def generate(self, song: Song) -> str | None:

@@ -65,12 +65,12 @@ def test_action_rate_limit_shared(make_app):
     app = make_app(RATELIMIT_ENABLED=True, RATE_LIMIT_ACTIONS="2 per minute")
     client = app.test_client()
     token = new_round(client)["roundToken"]
-    assert client.post("/api/rounds/reveal", json={"roundToken": token}).status_code == 200
     assert (
         client.post("/api/rounds/check", json={"roundToken": token, "guess": "x"}).status_code
         == 200
     )
-    response = client.post("/api/rounds/hint", json={"roundToken": token, "kind": "artist"})
+    assert client.post("/api/rounds/hint", json={"roundToken": token, "kind": "artist"}).status_code == 200
+    response = client.post("/api/rounds/reveal", json={"roundToken": token})
     assert response.status_code == 429
     assert response.json["error"]["code"] == "rate_limited"
 
@@ -87,6 +87,7 @@ def test_budget_exhaustion_serves_cache_then_503(make_app):
     new_round(client)
     assert len(generator.calls) == 2
     cached_ids = set(generator.calls)
+    assert state.snippets.can_generate() is False
     for _ in range(10):
         body = new_round(client)
         song_id = client.post("/api/rounds/reveal", json={"roundToken": body["roundToken"]}).json[
@@ -141,13 +142,19 @@ def test_disk_cache_loaded_and_used_without_key(make_app, tmp_path):
     from lyric_match.snippets import save_cache_file
 
     path = tmp_path / "snippets.json"
-    save_cache_file(path, {"Hello|Adele": ["placeholder cached line 1\nplaceholder cached line 2"]})
+    save_cache_file(
+        path,
+        {"Hello Stranger|Placeholder Duo": ["placeholder cached line 1\nplaceholder cached line 2"]},
+    )
     app = make_app(SNIPPET_GENERATOR=GeminiGenerator(None, "m", 5), SNIPPET_CACHE_PATH=str(path))
     client = app.test_client()
     body = new_round(client)
     assert body["lyrics"].startswith("placeholder cached line 1")
     answer = client.post("/api/rounds/reveal", json={"roundToken": body["roundToken"]}).json
-    assert answer["answer"]["title"] == "Hello"
+    assert answer["answer"]["title"] == "Hello Stranger"
+    # Cache-only rounds stay inside the selected packs.
+    response = client.post("/api/rounds", json={"packs": ["hi-one"]})
+    assert response.status_code == 503
 
 
 def test_fake_llm_mode(make_app):

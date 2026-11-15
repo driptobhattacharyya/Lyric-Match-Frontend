@@ -7,23 +7,23 @@ interface Props {
   result: RoundResult
   gameOver: boolean
   outOfHearts: boolean
-  waiting: boolean
   onContinue: () => void
 }
 
 const PRAISE = ['Nailed it!', 'Spot on!', 'Big ears!', 'Encore!', 'You know it!', 'Smooth!', 'Bang on!', 'Hit single!']
 const MISS: Record<Exclude<RoundResult['outcome'], 'correct'>, string> = {
-  wrong: 'Not quite!',
+  wrong: 'Out of hearts!',
   timeout: "Time's up!",
-  gaveup: 'Skipped',
+  skipped: 'Skipped',
 }
 
 /** Bottom sheet that reports the round and waits for the player to continue. */
-export function FeedbackBanner({ result, gameOver, outOfHearts, waiting, onContinue }: Props) {
+export function FeedbackBanner({ result, gameOver, outOfHearts, onContinue }: Props) {
   const ok = result.outcome === 'correct'
-  const b = result.breakdown
+  const { answer } = result
   const title = ok ? (result.streak >= 3 ? `${result.streak} in a row!` : PRAISE[result.index % PRAISE.length]) : MISS[result.outcome]
   const cta = gameOver ? 'See results' : 'Continue'
+  const details = [answer.film ? `Film: ${answer.film}` : null, answer.year ? String(answer.year) : null].filter(Boolean).join(' · ')
   return (
     <m.section
       role="status"
@@ -44,28 +44,34 @@ export function FeedbackBanner({ result, gameOver, outOfHearts, waiting, onConti
             animate={{ scale: 1, rotate: 0 }}
             transition={{ type: 'spring', stiffness: 500, damping: 15, delay: 0.1 }}
             className={`grid size-12 shrink-0 place-items-center rounded-full ${ok ? 'bg-mint text-ink' : 'bg-coral text-ink'}`}
+            aria-hidden="true"
           >
             <Icon name={ok ? 'check' : result.outcome === 'timeout' ? 'clock' : 'close'} size={28} strokeWidth={3} />
           </m.span>
           <div className="min-w-0 flex-1">
             <h2 className={`font-display text-2xl font-bold ${ok ? 'text-mint' : 'text-coral'}`}>{title}</h2>
-            <p className="truncate text-cloud">
+            <p className="text-cloud">
               <span className="text-mist">{ok ? 'It’s ' : 'It was '}</span>
-              <strong className="font-semibold">{result.answer.title}</strong>
-              <span className="text-mist"> · {result.answer.artist}</span>
+              <strong className="font-semibold">{answer.title}</strong>
+              <span className="text-mist"> by </span>
+              <span className="font-medium">{answer.artist}</span>
             </p>
+            {details && <p className="text-sm text-mist">{details}</p>}
             <div className="mt-2 flex flex-wrap gap-1.5 text-sm font-semibold">
-              {ok && b ? (
+              {ok ? (
                 <>
                   <Chip tone="sun">+{result.points} pts</Chip>
-                  {b.speedBonus > 0 && <Chip tone="aqua">Speed +{b.speedBonus}</Chip>}
-                  {b.multiplier > 1 && <Chip tone="pop">Streak ×{b.multiplier}</Chip>}
-                  {b.hintPenalty > 0 && <Chip tone="mist">Hints −{b.hintPenalty}</Chip>}
-                  {b.attemptPenalty > 0 && <Chip tone="mist">Retries −{b.attemptPenalty}</Chip>}
+                  {result.multiplier > 1 && (
+                    <Chip tone="pop">
+                      {result.basePoints} × {result.multiplier} streak
+                    </Chip>
+                  )}
+                  {result.hints.lettersLevel > 0 || result.hints.artist ? <Chip tone="mist">Hints used</Chip> : null}
                 </>
               ) : (
                 <Chip tone="coral">
-                  <Icon name="heart" size={14} filled /> −1 heart{outOfHearts ? ' · out of hearts' : ''}
+                  <Icon name="heart" size={14} filled />
+                  {result.outcome === 'wrong' ? 'No hearts left' : `−1 heart${outOfHearts ? ' · no hearts left' : ''}`}
                 </Chip>
               )}
             </div>
@@ -75,10 +81,9 @@ export function FeedbackBanner({ result, gameOver, outOfHearts, waiting, onConti
           type="button"
           autoFocus
           onClick={onContinue}
-          aria-busy={waiting}
           className={`btn-chunk w-full sm:w-auto sm:min-w-44 ${ok ? 'btn-mint' : 'btn-coral'}`}
         >
-          {cta}
+          {cta} <Icon name="arrow" />
         </button>
       </div>
     </m.section>
@@ -87,7 +92,6 @@ export function FeedbackBanner({ result, gameOver, outOfHearts, waiting, onConti
 
 const TONES = {
   sun: 'bg-sun text-ink',
-  aqua: 'bg-aqua/15 text-aqua',
   pop: 'bg-pop/20 text-pop',
   mist: 'bg-white/10 text-mist',
   coral: 'bg-coral/20 text-coral',

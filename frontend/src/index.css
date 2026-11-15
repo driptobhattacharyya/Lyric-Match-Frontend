@@ -176,3 +176,25 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+@layer components {
+  /* Selectable pill used by the pack picker. */
+  .chip {
+    @apply inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-full border-2 border-line bg-night px-3.5 font-display font-semibold text-cloud transition select-none hover:border-mist/60 disabled:cursor-not-allowed disabled:opacity-50;
+    box-shadow: 0 3px 0 #0b0820;
+  }
+  .chip:active:not(:disabled) {
+    transform: translateY(2px);
+    box-shadow: 0 1px 0 #0b0820;
+  }
+  .chip-on {
+    @apply border-aqua bg-aqua text-ink hover:border-aqua;
+    box-shadow: 0 3px 0 var(--color-aqua-deep);
+  }
+  .chip-count {
+    @apply rounded-full bg-plum px-2 text-xs leading-5 text-mist;
+  }
+  .chip-on .chip-count {
+    @apply bg-ink/15 text-ink;
+  }
+}

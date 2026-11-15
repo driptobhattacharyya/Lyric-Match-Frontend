@@ -33,9 +33,7 @@ def llm_unavailable() -> ApiError:
 
 
 def leaderboard_unavailable() -> ApiError:
-    return ApiError(
-        503, "leaderboard_unavailable", "The leaderboard is unavailable right now."
-    )
+    return ApiError(503, "leaderboard_unavailable", "The leaderboard is unavailable right now.")
 
 
 def duplicate_game() -> ApiError:
