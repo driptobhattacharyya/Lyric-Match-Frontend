@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: lyric-match-api
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # One worker: rate limits, snippet cache and LLM budget live in process memory.
+    startCommand: gunicorn --workers 1 --threads 4 --timeout 60 --bind 0.0.0.0:$PORT app:app
+    healthCheckPath: /healthz
+    envVars:
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: GEMINI_MODEL
+        value: gemini-3.8-flash
+      - key: MAX_LLM_CALLS_PER_DAY
+        value: "200"

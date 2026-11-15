@@ -1,6 +1,11 @@
 .env
-.idx
-.vscode
-.venv
-__pycache__
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.idx/
+.vscode/
 devserver.sh
+# Locally generated snippet cache (see scripts/pregenerate.py)
+data/
