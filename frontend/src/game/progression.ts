@@ -123,40 +123,35 @@ export interface BadgeDef {
   id: BadgeId
   name: string
   description: string
-  icon: string
 }
 
 export const SPEED_DEMON_MS = 4000
 export const PLATINUM_SCORE = 1000
 
 export const BADGES: readonly BadgeDef[] = [
-  { id: 'first_note', name: 'First Note', description: 'Name your first song.', icon: 'note' },
-  { id: 'on_fire', name: 'On Fire', description: 'Get 5 right in a row.', icon: 'flame' },
+  { id: 'first_note', name: 'First Note', description: 'Name your first song.' },
+  { id: 'on_fire', name: 'On Fire', description: 'Get 5 right in a row.' },
   {
     id: 'flawless',
     name: 'Flawless',
     description: `Get all ${RULES.rounds} rounds of a game right.`,
-    icon: 'crown',
   },
   {
     id: 'ear_only',
     name: 'Ear Only',
     description: 'Finish every round of a game without a hint.',
-    icon: 'ear',
   },
   {
     id: 'speed_demon',
     name: 'Speed Demon',
     description: `Answer correctly in under ${SPEED_DEMON_MS / 1000} seconds.`,
-    icon: 'bolt',
   },
   {
     id: 'platinum',
     name: 'Platinum',
     description: `Score ${PLATINUM_SCORE.toLocaleString('en-US')}+ points in one game.`,
-    icon: 'disc',
   },
-  { id: 'three_day', name: 'Groove Habit', description: 'Play 3 days in a row.', icon: 'calendar' },
+  { id: 'three_day', name: 'Groove Habit', description: 'Play 3 days in a row.' },
 ]
 
 export interface GameSummary {

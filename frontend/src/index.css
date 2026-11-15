@@ -1,0 +1,178 @@
+@import '@fontsource-variable/fredoka/wght.css';
+@import 'tailwindcss';
+
+@theme {
+  --font-display: 'Fredoka Variable', ui-rounded, 'SF Pro Rounded', system-ui, sans-serif;
+  --font-sans: 'Fredoka Variable', ui-rounded, system-ui, sans-serif;
+
+  /* Surfaces: a deep "after-hours" indigo */
+  --color-ink: #110d29;
+  --color-night: #1b1640;
+  --color-plum: #261f58;
+  --color-line: #3a3180;
+  --color-mist: #b8b1e8;
+  --color-cloud: #f5f2ff;
+
+  /* Brand + feedback colours, each with a darker "depth" shade for 3D buttons */
+  --color-pop: #ff4f8b;
+  --color-pop-deep: #c42a63;
+  --color-sun: #ffd23f;
+  --color-sun-deep: #c79a0c;
+  --color-aqua: #2de2e6;
+  --color-aqua-deep: #139ea2;
+  --color-grape: #9b7bff;
+  --color-grape-deep: #6948d6;
+  --color-mint: #3ee08f;
+  --color-mint-deep: #1d9a5b;
+  --color-coral: #ff6363;
+  --color-coral-deep: #c43a3a;
+
+  --radius-chunk: 1.25rem;
+
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-spin-slow: spin 8s linear infinite;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  --animate-eq: eq 0.9s ease-in-out infinite;
+  --animate-fade-late: fade-in 0.5s ease-out 3s both;
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0) rotate(-2deg);
+    }
+    50% {
+      transform: translateY(-10px) rotate(2deg);
+    }
+  }
+  @keyframes shimmer {
+    from {
+      background-position: -200% 0;
+    }
+    to {
+      background-position: 200% 0;
+    }
+  }
+  @keyframes eq {
+    0%,
+    100% {
+      transform: scaleY(0.3);
+    }
+    50% {
+      transform: scaleY(1);
+    }
+  }
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-ink font-sans text-cloud antialiased;
+    min-height: 100dvh;
+    background-image:
+      radial-gradient(60rem 40rem at 110% -10%, rgb(155 123 255 / 0.22), transparent 60%),
+      radial-gradient(50rem 36rem at -20% 110%, rgb(255 79 139 / 0.16), transparent 60%);
+    background-attachment: fixed;
+  }
+  :focus-visible {
+    outline: 3px solid var(--color-aqua);
+    outline-offset: 3px;
+    border-radius: 0.75rem;
+  }
+  ::selection {
+    background: rgb(255 79 139 / 0.45);
+  }
+}
+
+@layer components {
+  /* Chunky button with a pressed-depth effect. Colour via --btn / --btn-deep. */
+  .btn-chunk {
+    --btn: var(--color-pop);
+    --btn-deep: var(--color-pop-deep);
+    --depth: 5px;
+    @apply relative inline-flex min-h-14 cursor-pointer items-center justify-center gap-2 rounded-chunk px-6 font-display text-lg font-semibold tracking-wide text-ink uppercase select-none;
+    background: var(--btn);
+    box-shadow: 0 var(--depth) 0 var(--btn-deep);
+    transform: translateY(0);
+    transition:
+      transform 80ms ease-out,
+      box-shadow 80ms ease-out,
+      filter 120ms;
+  }
+  .btn-chunk:hover:not(:disabled) {
+    filter: brightness(1.06);
+  }
+  .btn-chunk:active:not(:disabled) {
+    transform: translateY(var(--depth));
+    box-shadow: 0 0 0 var(--btn-deep);
+  }
+  .btn-chunk:disabled {
+    @apply cursor-not-allowed;
+    --btn: var(--color-plum);
+    --btn-deep: #17123a;
+    color: var(--color-mist);
+  }
+  .btn-pop {
+    --btn: var(--color-pop);
+    --btn-deep: var(--color-pop-deep);
+  }
+  .btn-sun {
+    --btn: var(--color-sun);
+    --btn-deep: var(--color-sun-deep);
+  }
+  .btn-aqua {
+    --btn: var(--color-aqua);
+    --btn-deep: var(--color-aqua-deep);
+  }
+  .btn-mint {
+    --btn: var(--color-mint);
+    --btn-deep: var(--color-mint-deep);
+  }
+  .btn-coral {
+    --btn: var(--color-coral);
+    --btn-deep: var(--color-coral-deep);
+  }
+  .btn-grape {
+    --btn: var(--color-grape);
+    --btn-deep: var(--color-grape-deep);
+  }
+  /* Outlined variant on dark surfaces */
+  .btn-ghost {
+    --btn: var(--color-night);
+    --btn-deep: var(--color-line);
+    @apply border-2 border-line text-cloud;
+  }
+
+  .card {
+    @apply rounded-[1.75rem] border-2 border-line bg-night;
+    box-shadow: 0 6px 0 #0b0820;
+  }
+
+  .skeleton {
+    background: linear-gradient(90deg, var(--color-plum) 0%, #352b78 50%, var(--color-plum) 100%);
+    background-size: 200% 100%;
+    @apply animate-shimmer rounded-xl;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
