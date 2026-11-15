@@ -1,68 +1,77 @@
-import type { Difficulty, HintUsage, PointsBreakdown } from './types'
+import type { ApiMode, HintUsage } from './types'
 
-/** Every tunable number of the game lives here so the UI and tests agree. */
+/**
+ * Every tunable number of the client lives here so the UI and tests agree.
+ *
+ * Base points are computed by the server (docs/api.md, "Scoring") and arrive
+ * with each check/reveal. The client only applies the streak multiplier, the
+ * same way the server recomputes it from the receipts.
+ */
 export const RULES = {
-  rounds: 8,
   hearts: 3,
-  roundSeconds: { easy: 20, pro: 45 } satisfies Record<Difficulty, number>,
-  /** Guesses allowed per round before it counts as lost. */
-  attempts: { easy: 1, pro: 3 } satisfies Record<Difficulty, number>,
-  basePoints: { easy: 100, pro: 150 } satisfies Record<Difficulty, number>,
-  /** Max bonus, scaled linearly by the share of the clock left. */
-  speedBonusMax: 50,
-  /** Cost of each letters-hint level (cumulative: level 3 costs 3x). */
-  letterHintCost: 20,
-  artistHintCost: 30,
-  wrongAttemptCost: 25,
-  /** Points before speed bonus and multiplier never drop below this. */
-  minBasePoints: 10,
-  /** Streak multiplier grows 0.25 per consecutive correct answer, capped. */
-  streakStep: 0.25,
-  maxMultiplier: 2,
+  /** Fallbacks used until /api/meta has loaded. */
+  defaultRounds: 8,
+  defaultRoundSeconds: { type: 45, choice: 20 } satisfies Record<ApiMode, number>,
+  /** Display-only mirror of the server's hint penalties (taken off the base). */
+  letterHintCost: 15,
+  artistHintCost: 20,
+  maxLetterLevel: 3,
+  /** Each consecutive correct round adds 0.1 to the multiplier, capped at 1.5. */
+  streakStepTenths: 1,
+  maxMultiplierTenths: 15,
+  /** Session exclude list sent to POST /api/rounds is capped by the server. */
+  maxExclude: 200,
 } as const
 
-export function roundDurationMs(difficulty: Difficulty): number {
-  return RULES.roundSeconds[difficulty] * 1000
+/** Multiplier, in tenths, for the n-th consecutive correct round (n >= 1). Integer maths: no float drift. */
+export function multiplierTenths(streak: number): number {
+  if (streak <= 1) return 10
+  return Math.min(RULES.maxMultiplierTenths, 10 + RULES.streakStepTenths * (streak - 1))
 }
 
-/** Multiplier for the Nth consecutive correct answer (streak >= 1). */
+/** `min(1.5, 1 + 0.1 * (n - 1))` as a display number (1, 1.1 … 1.5). */
 export function streakMultiplier(streak: number): number {
-  if (streak <= 1) return 1
-  return Math.min(1 + RULES.streakStep * (streak - 1), RULES.maxMultiplier)
+  return multiplierTenths(streak) / 10
 }
 
+/** Base points × streak multiplier, rounded half up, computed exactly in integers. */
+export function applyStreak(basePoints: number, streak: number): number {
+  if (basePoints <= 0) return 0
+  return Math.floor((basePoints * multiplierTenths(streak) + 5) / 10)
+}
+
+/** Total hint penalty the server takes off a correct round's base. */
 export function hintPenalty(hints: HintUsage): number {
-  return hints.lettersLevel * RULES.letterHintCost + (hints.artist ? RULES.artistHintCost : 0)
+  return RULES.letterHintCost * hints.lettersLevel + (hints.artist ? RULES.artistHintCost : 0)
 }
 
-export interface ScoreInput {
-  difficulty: Difficulty
-  remainingMs: number
-  durationMs: number
-  hints: HintUsage
-  wrongAttempts: number
-  /** Streak including this correct answer. */
+/** Extra penalty of asking for the next letters level (levels are cumulative by highest level). */
+export function nextLetterCost(): number {
+  return RULES.letterHintCost
+}
+
+export interface ScoredRound {
+  correct: boolean
+  basePoints: number
+}
+
+export interface ScoredStep {
   streak: number
+  multiplier: number
+  points: number
 }
 
-/** Points for a correct answer. Lost rounds always score 0. */
-export function scoreCorrect(input: ScoreInput): PointsBreakdown {
-  const base = RULES.basePoints[input.difficulty]
-  const hp = hintPenalty(input.hints)
-  const ap = input.wrongAttempts * RULES.wrongAttemptCost
-  const afterPenalties = Math.max(base - hp - ap, RULES.minBasePoints)
-  const share = input.durationMs > 0 ? clamp(input.remainingMs / input.durationMs, 0, 1) : 0
-  const speedBonus = Math.round(RULES.speedBonusMax * share)
-  const multiplier = streakMultiplier(input.streak)
-  const total = Math.round((afterPenalties + speedBonus) * multiplier)
-  return {
-    base,
-    hintPenalty: Math.min(hp, base - RULES.minBasePoints),
-    attemptPenalty: Math.min(ap, Math.max(base - RULES.minBasePoints - hp, 0)),
-    speedBonus,
-    multiplier,
-    total,
-  }
+/** Folds rounds in play order exactly as the server recomputes a submitted game. */
+export function scoreGame(rounds: readonly ScoredRound[]): { steps: ScoredStep[]; total: number } {
+  let streak = 0
+  let total = 0
+  const steps = rounds.map((r) => {
+    streak = r.correct ? streak + 1 : 0
+    const points = r.correct ? applyStreak(r.basePoints, streak) : 0
+    total += points
+    return { streak, multiplier: r.correct ? streakMultiplier(streak) : 1, points }
+  })
+  return { steps, total }
 }
 
 export function clamp(n: number, lo: number, hi: number): number {
