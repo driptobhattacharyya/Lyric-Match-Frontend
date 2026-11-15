@@ -11,7 +11,8 @@ export function StreakChip({ streak }: { streak: number }) {
       className={`flex items-center gap-1.5 rounded-full border-2 px-3 py-1.5 font-display font-semibold transition-colors ${
         hot ? 'border-sun/60 bg-sun/10 text-sun' : 'border-line text-mist'
       }`}
-      aria-label={`Streak ${streak}. Next correct answer earns times ${nextMult}`}
+      role="img"
+      aria-label={`Answer streak ${streak}. Next correct answer earns times ${nextMult}`}
     >
       <m.span
         key={streak}

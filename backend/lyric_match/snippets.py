@@ -1,4 +1,4 @@
-"""Snippet cache, daily LLM budget, and per-round snippet selection."""
+"""Snippet cache, persistent store hook, daily LLM budget, and per-round selection."""
 
 from __future__ import annotations
 
@@ -8,9 +8,11 @@ import os
 import random
 import tempfile
 import threading
+import time
 from collections.abc import Callable, Sequence
 from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import Protocol
 
 from .llm import SnippetGenerator, clean_snippet
 from .songs import Song
@@ -18,11 +20,14 @@ from .songs import Song
 log = logging.getLogger(__name__)
 
 MAX_SONG_ATTEMPTS = 3
+STORE_RECHECK_SECONDS = 3600.0
+#: Songs looked up in the persistent store per round when no LLM can be used.
+MAX_STORE_PROBES = 6
 CACHE_FILE_VERSION = 1
 
 
 class DailyBudget:
-    """Global LLM call counter that resets at UTC midnight (in memory only)."""
+    """Global LLM call counter (all providers) that resets at UTC midnight (in memory)."""
 
     def __init__(self, limit: int | None, today: Callable[[], date] | None = None):
         self.limit = limit
@@ -109,61 +114,116 @@ def save_cache_file(path: str | os.PathLike, snippets: dict[str, list[str]]) -> 
     os.replace(tmp, target)
 
 
+class SnippetStore(Protocol):
+    """Persistent snippet storage (Supabase). Implementations never raise."""
+
+    def fetch(self, song: Song) -> list[str]: ...
+
+    def save(self, song: Song, text: str, provider: str) -> bool: ...
+
+
 class SnippetService:
+    """Picks songs and snippets: memory cache -> persistent store -> LLM providers.
+
+    Providers are tried in order (Gemini, then OpenAI); each call that spends
+    API quota counts against the shared daily budget.
+    """
+
     def __init__(
         self,
-        generator: SnippetGenerator,
+        generators: SnippetGenerator | Sequence[SnippetGenerator],
         cache: SnippetCache,
         budget: DailyBudget,
         cache_hit_probability: float = 0.85,
         rng: random.Random | None = None,
+        store: SnippetStore | None = None,
+        store_recheck_seconds: float = STORE_RECHECK_SECONDS,
+        clock: Callable[[], float] = time.monotonic,
     ):
-        self.generator = generator
+        if isinstance(generators, Sequence):
+            self.generators = list(generators)
+        else:
+            self.generators = [generators]
         self.cache = cache
         self.budget = budget
         self.cache_hit_probability = cache_hit_probability
+        self.store = store
         self._rng = rng or random.SystemRandom()
+        self._store_checked: dict[str, float] = {}
+        self._store_recheck = store_recheck_seconds
+        self._clock = clock
+        self._lock = threading.Lock()
 
     def can_generate(self) -> bool:
-        if not self.generator.available:
+        available = [g for g in self.generators if g.available]
+        if not available:
             return False
-        return not self.generator.uses_quota or self.budget.remaining() != 0
+        return any(not g.uses_quota for g in available) or self.budget.remaining() != 0
 
     def has_cached(self, song: Song) -> bool:
         return bool(self.cache.get(song.cache_key))
 
+    def _load_from_store(self, song: Song) -> list[str]:
+        """On a memory miss, pull stored snippets (at most once per recheck window)."""
+        if self.store is None:
+            return []
+        now = self._clock()
+        with self._lock:
+            last = self._store_checked.get(song.cache_key)
+            if last is not None and now - last < self._store_recheck:
+                return []
+            self._store_checked[song.cache_key] = now
+        for text in self.store.fetch(song):
+            if clean_snippet(text):
+                self.cache.add(song.cache_key, text)
+        return self.cache.get(song.cache_key)
+
+    def generate(self, song: Song) -> tuple[str, str] | None:
+        """(snippet, provider name) from the first provider that succeeds."""
+        for generator in self.generators:
+            if not generator.available:
+                continue
+            if generator.uses_quota and not self.budget.try_consume():
+                log.warning("llm_budget_exhausted")
+                return None
+            text = clean_snippet(generator.generate(song))
+            if text:
+                return text, getattr(generator, "name", type(generator).__name__)
+        return None
+
     def snippet_for(self, song: Song) -> str | None:
-        variants = self.cache.get(song.cache_key)
+        variants = self.cache.get(song.cache_key) or self._load_from_store(song)
         if variants and (
             len(variants) >= self.cache.max_variants
             or self._rng.random() < self.cache_hit_probability
         ):
             return self._rng.choice(variants)
-        if not self.generator.available or (
-            self.generator.uses_quota and not self.budget.try_consume()
-        ):
-            return self._rng.choice(variants) if variants else None
-        text = self.generator.generate(song)
-        if text:
+        result = self.generate(song)
+        if result:
+            text, provider = result
             self.cache.add(song.cache_key, text)
+            if self.store is not None:
+                self.store.save(song, text, provider)
             return text
         return self._rng.choice(variants) if variants else None
 
-    def pick_round(
-        self, pool: Sequence[Song], catalogue: Sequence[Song]
-    ) -> tuple[Song, str] | None:
+    def pick_round(self, pool: Sequence[Song]) -> tuple[Song, str] | None:
         """Choose a song from ``pool`` and get a snippet for it.
 
-        Tries up to MAX_SONG_ATTEMPTS different songs. When the LLM can't be
-        used, only songs with cached snippets are considered (falling back to
-        the whole catalogue's cache before giving up).
+        Tries up to MAX_SONG_ATTEMPTS different songs. When no LLM can be used,
+        only songs with cached (or stored) snippets are considered.
         """
-        if not self.can_generate():
-            pool = [s for s in pool if self.has_cached(s)] or [
-                s for s in catalogue if self.has_cached(s)
-            ]
         if not pool:
             return None
+        if not self.can_generate():
+            cached = [s for s in pool if self.has_cached(s)]
+            if not cached and self.store is not None:
+                for song in self._rng.sample(list(pool), k=min(MAX_STORE_PROBES, len(pool))):
+                    if self._load_from_store(song):
+                        cached.append(song)
+            pool = cached
+            if not pool:
+                return None
         for song in self._rng.sample(list(pool), k=min(MAX_SONG_ATTEMPTS, len(pool))):
             text = self.snippet_for(song)
             if text:

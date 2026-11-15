@@ -5,18 +5,20 @@ import { Icon } from './Icon'
 interface Props {
   interactive: boolean
   checking: boolean
-  wrongCount: number
-  attemptsLeft: number
-  lastWrong: string | null
+  wrongGuesses: string[]
+  titleLength: number
   onSubmit: (guess: string) => void
-  onGiveUp: () => void
+  onSkip: () => void
 }
 
-/** Pro mode: a real form with a labelled input; Enter submits. */
-export function TypeAnswer({ interactive, checking, wrongCount, attemptsLeft, lastWrong, onSubmit, onGiveUp }: Props) {
+/** Pro mode: a real form with a labelled input; Enter submits. Each wrong guess costs a heart. */
+export function TypeAnswer({ interactive, checking, wrongGuesses, titleLength, onSubmit, onSkip }: Props) {
   const [value, setValue] = useState('')
   const input = useRef<HTMLInputElement>(null)
   const shake = useAnimationControls()
+  const wrongCount = wrongGuesses.length
+  const lastWrong = wrongGuesses.at(-1) ?? null
+  const showWrong = lastWrong !== null && value.trim() === lastWrong
 
   useEffect(() => {
     if (interactive) input.current?.focus({ preventScroll: true })
@@ -35,7 +37,7 @@ export function TypeAnswer({ interactive, checking, wrongCount, attemptsLeft, la
   }
 
   return (
-    <form onSubmit={submit} className="space-y-3" noValidate>
+    <form onSubmit={submit} className="space-y-3" noValidate aria-label="Guess the title">
       <label htmlFor="guess" className="block text-center font-display text-sm font-semibold tracking-wider text-mist uppercase">
         Type the song title
       </label>
@@ -46,17 +48,17 @@ export function TypeAnswer({ interactive, checking, wrongCount, attemptsLeft, la
           value={value}
           onChange={(e) => setValue(e.target.value)}
           readOnly={!interactive}
-          aria-invalid={wrongCount > 0 && value === lastWrong}
+          aria-invalid={showWrong}
           aria-describedby="guess-status"
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"
           spellCheck={false}
           enterKeyHint="send"
-          maxLength={120}
-          placeholder="Song title…"
-          className={`min-h-14 w-full min-w-0 rounded-chunk border-2 bg-night px-4 font-display text-xl text-cloud placeholder:text-mist/60 focus:outline-none focus-visible:border-aqua ${
-            wrongCount > 0 && value === lastWrong ? 'border-coral' : 'border-line'
+          maxLength={200}
+          placeholder={`${titleLength} characters…`}
+          className={`min-h-14 w-full min-w-0 rounded-chunk border-2 bg-night px-4 font-display text-xl text-cloud placeholder:text-mist/70 focus:outline-none focus-visible:border-aqua ${
+            showWrong ? 'border-coral' : 'border-line'
           }`}
         />
         <button type="submit" className="btn-chunk btn-aqua shrink-0 px-5" disabled={!value.trim() || !interactive} aria-busy={checking}>
@@ -65,21 +67,22 @@ export function TypeAnswer({ interactive, checking, wrongCount, attemptsLeft, la
         </button>
       </m.div>
       <div className="flex items-center justify-between gap-3 px-1">
-        <p id="guess-status" className="flex items-center gap-2 text-sm text-mist" aria-live="polite">
-          <span className="flex gap-1" aria-hidden="true">
-            {Array.from({ length: wrongCount + attemptsLeft }, (_, i) => (
-              <span key={i} className={`size-2.5 rounded-full ${i < wrongCount ? 'bg-coral' : 'bg-aqua'}`} />
-            ))}
-          </span>
-          {wrongCount > 0 ? `Not that one. ${attemptsLeft} ${attemptsLeft === 1 ? 'try' : 'tries'} left` : `${attemptsLeft} tries`}
+        <p id="guess-status" className="min-w-0 text-sm text-mist" aria-live="polite">
+          {lastWrong ? (
+            <span className="text-coral">
+              Not “<span className="break-all">{lastWrong}</span>”. −1 heart
+            </span>
+          ) : (
+            'Spelling is forgiving. Wrong guesses cost a heart.'
+          )}
         </p>
         <button
           type="button"
-          onClick={onGiveUp}
+          onClick={onSkip}
           disabled={!interactive}
-          className="inline-flex min-h-11 cursor-pointer items-center gap-1.5 rounded-xl px-3 font-display font-semibold text-mist transition hover:text-cloud disabled:opacity-40"
+          className="inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-1.5 rounded-xl px-3 font-display font-semibold text-mist transition hover:text-cloud disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <Icon name="flag" size={18} /> Give up
+          <Icon name="flag" size={18} /> Skip
         </button>
       </div>
     </form>

@@ -23,13 +23,14 @@ PERIODS = {"all": None, "week": timedelta(days=7), "day": timedelta(days=1)}
 # Small built-in blocklist (English and romanised Hindi). Matched against the
 # name with spaces/punctuation removed and common look-alike digits mapped.
 _BLOCKED_SUBSTRINGS = (
-    "fuck", "fuk", "shit", "cunt", "nigg", "nigga", "faggot", "bitch", "whore", "slut",
-    "rapist", "nazi", "hitler", "pedo", "wank", "twat", "bastard", "asshole", "dickhead",
-    "motherf", "chutiya", "chutia", "madarchod", "madarc", "bhenchod", "behenchod",
-    "benchod", "bhosd", "gandu", "randi", "lavde", "lauda", "lawda", "harami", "kutta",
-    "kamina", "chod",
+    "fuck", "shit", "nigg", "faggot", "bitch", "whore", "slut", "rapist", "hitler",
+    "asshole", "dickhead", "motherf", "chutiya", "chutia", "madarchod", "bhenchod",
+    "behenchod", "benchod", "bhosd", "gandu", "lavde", "lawda",
 )  # fmt: skip
-_BLOCKED_WORDS = {"ass", "cum", "tit", "tits", "dick", "cock", "porn", "sex", "fag", "gaand"}
+_BLOCKED_WORDS = {
+    "ass", "cum", "tit", "tits", "dick", "cock", "porn", "sex", "fag", "cunt", "nazi",
+    "wank", "twat", "pedo", "randi", "gaand", "lauda", "kutta", "kamina", "harami",
+}  # fmt: skip
 _LEET = str.maketrans({"0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b"})
 
 

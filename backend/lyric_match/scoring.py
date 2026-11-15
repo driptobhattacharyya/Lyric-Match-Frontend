@@ -30,8 +30,8 @@ def hint_penalty(letters_level: int, artist_hint: bool) -> int:
 
 
 def round_points(elapsed: float, time_limit: float, letters_level: int, artist_hint: bool) -> int:
-    points = BASE_POINTS + speed_bonus(elapsed, time_limit) - hint_penalty(letters_level, artist_hint)
-    return max(MIN_CORRECT_POINTS, points)
+    bonus = speed_bonus(elapsed, time_limit)
+    return max(MIN_CORRECT_POINTS, BASE_POINTS + bonus - hint_penalty(letters_level, artist_hint))
 
 
 def streak_multiplier(streak: int) -> float:

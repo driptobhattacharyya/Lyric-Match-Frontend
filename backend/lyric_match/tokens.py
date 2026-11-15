@@ -33,6 +33,7 @@ class RoundClaims:
     time_limit: int
     year: int | None = None
     film: str | None = None
+    language: str = "en"
     letters_level: int = 0
     artist_hint: bool = False
 
@@ -99,6 +100,7 @@ class TokenCodec(_Codec):
             "l": claims.time_limit,
             "y": claims.year,
             "f": claims.film,
+            "lg": claims.language,
             "hl": claims.letters_level,
             "ha": claims.artist_hint,
         }
@@ -117,6 +119,7 @@ class TokenCodec(_Codec):
                 time_limit=int(data["l"]),
                 year=None if data.get("y") is None else int(data["y"]),
                 film=None if data.get("f") is None else str(data["f"]),
+                language=str(data.get("lg", "en")),
                 letters_level=int(data.get("hl", 0)),
                 artist_hint=bool(data.get("ha", False)),
             )

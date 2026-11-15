@@ -93,10 +93,21 @@ export const sfx = {
       { freq: 330, at: 0.16, dur: 0.3, wave: 'square', gain: 0.1 },
     ]),
   levelUp: () =>
-    play([C5, E5, G5, C6].map((f, i) => ({ freq: f, at: i * 0.09, dur: 0.22, gain: 0.45 })).concat([
+    play([
+      ...[C5, E5, G5, C6].map((f, i): Note => ({ freq: f, at: i * 0.09, dur: 0.22, gain: 0.45 })),
       { freq: C6, at: 0.4, dur: 0.5, wave: 'sine', gain: 0.4 },
       { freq: G5, at: 0.4, dur: 0.5, wave: 'sine', gain: 0.25 },
-    ])),
+    ]),
+  /** Soft thud when a heart breaks. */
+  heart: () =>
+    play([
+      { freq: 300, at: 0, dur: 0.12, wave: 'sine', gain: 0.4, slideTo: 140 },
+      { freq: 180, at: 0.1, dur: 0.18, wave: 'triangle', gain: 0.25, slideTo: 90 },
+    ]),
+  /** Rising sparkle for streak milestones. */
+  streak: () => play([E5, G5, C6, E5 * 2].map((f, i): Note => ({ freq: f, at: i * 0.05, dur: 0.12, wave: 'sine', gain: 0.3 }))),
+  /** Little tick per counted point burst on the results screen. */
+  count: () => play([{ freq: 1320, at: 0, dur: 0.03, wave: 'sine', gain: 0.12 }]),
   fanfare: () =>
     play([
       { freq: G5, at: 0, dur: 0.12 },

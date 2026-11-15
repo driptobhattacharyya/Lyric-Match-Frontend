@@ -20,16 +20,26 @@ def bad_request(message: str) -> ApiError:
     return ApiError(400, "bad_request", message)
 
 
-def invalid_token() -> ApiError:
-    return ApiError(
-        400, "invalid_token", "This round has expired or is invalid. Start a new round."
-    )
+def invalid_token(
+    message: str = "This round has expired or is invalid. Start a new round.",
+) -> ApiError:
+    return ApiError(400, "invalid_token", message)
 
 
 def llm_unavailable() -> ApiError:
     return ApiError(
         503, "llm_unavailable", "Couldn't get lyrics right now. Please try again later."
     )
+
+
+def leaderboard_unavailable() -> ApiError:
+    return ApiError(
+        503, "leaderboard_unavailable", "The leaderboard is unavailable right now."
+    )
+
+
+def duplicate_game() -> ApiError:
+    return ApiError(409, "duplicate_game", "This game has already been submitted.")
 
 
 def error_response(status: int, code: str, message: str):
