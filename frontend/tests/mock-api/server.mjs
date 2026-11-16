@@ -234,6 +234,21 @@ const server = http.createServer(async (req, res) => {
     })
   }
 
+  if (path === '/api/scores') {
+    if (!cfg.leaderboard) return err(res, 'leaderboard_unavailable', 'No database configured.')
+    const name = typeof body.name === 'string' ? body.name.trim() : ''
+    if (!name || name.length > 20 || !/^[\p{L}\p{N} _.-]+$/u.test(name)) return err(res, 'bad_request', 'Name must be 1 to 20 letters, digits, spaces, _ - or .')
+    const receipts = Array.isArray(body.receipts) ? body.receipts.map(dec) : []
+    if (!receipts.length || receipts.length > ROUNDS_PER_GAME || receipts.some((r) => !r)) return err(res, 'bad_request', 'Invalid receipts.')
+    const key = receipts.map((r) => r.rid).join(',')
+    if (usedReceipts.has(key)) return err(res, 'duplicate_game', 'This game was already submitted.')
+    usedReceipts.add(key)
+    const score = streakTotal(receipts)
+    const entry = { id: Math.random().toString(36).slice(2), name, score, mode: receipts[0].mode, correct: receipts.filter((r) => r.correct).length, rounds: receipts.length, at: Date.now() }
+    scores.push(entry)
+    const rank = scores.filter((s) => s.mode === entry.mode && s.score > score).length + 1
+    return send(res, 200, { id: entry.id, score, rank })
+  }
   const tok = dec(body.roundToken)
   const song = tok && SONGS.find((s) => s.songId === tok.sid)
   if (!song) return err(res, 'invalid_token', 'This round expired.')
@@ -258,21 +273,6 @@ const server = http.createServer(async (req, res) => {
   }
   if (path === '/api/rounds/reveal') {
     return send(res, 200, { answer, points: 0, receipt: enc({ rid: tok.rid, mode: tok.mode, points: 0, correct: false }) })
-  }
-  if (path === '/api/scores') {
-    if (!cfg.leaderboard) return err(res, 'leaderboard_unavailable', 'No database configured.')
-    const name = typeof body.name === 'string' ? body.name.trim() : ''
-    if (!name || name.length > 20 || !/^[\p{L}\p{N} _.-]+$/u.test(name)) return err(res, 'bad_request', 'Name must be 1 to 20 letters, digits, spaces, _ - or .')
-    const receipts = Array.isArray(body.receipts) ? body.receipts.map(dec) : []
-    if (!receipts.length || receipts.length > ROUNDS_PER_GAME || receipts.some((r) => !r)) return err(res, 'bad_request', 'Invalid receipts.')
-    const key = receipts.map((r) => r.rid).join(',')
-    if (usedReceipts.has(key)) return err(res, 'duplicate_game', 'This game was already submitted.')
-    usedReceipts.add(key)
-    const score = streakTotal(receipts)
-    const entry = { id: Math.random().toString(36).slice(2), name, score, mode: receipts[0].mode, correct: receipts.filter((r) => r.correct).length, rounds: receipts.length, at: Date.now() }
-    scores.push(entry)
-    const rank = scores.filter((s) => s.mode === entry.mode && s.score > score).length + 1
-    return send(res, 200, { id: entry.id, score, rank })
   }
   return err(res, 'not_found', 'Not found.')
 })
