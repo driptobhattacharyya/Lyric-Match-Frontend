@@ -1,12 +1,14 @@
 import pytest
 
 from lyric_match.scoring import (
+    apply_streak,
     game_score,
     hint_penalty,
     round_half_up,
     round_points,
     speed_bonus,
     streak_multiplier,
+    streak_tenths,
 )
 
 
@@ -60,3 +62,44 @@ def test_game_score():
     assert game_score([(True, 100), (False, 0), (True, 100), (True, 125)]) == 100 + 100 + 138
     eight = [(True, 150)] * 8
     assert game_score(eight) == 150 + 165 + 180 + 195 + 210 + 225 + 225 + 225
+
+
+@pytest.mark.parametrize(
+    ("base", "streak", "expected"),
+    [
+        # Exact .5 cases round up; float maths gets several of these wrong
+        # (105 * 1.3 == 136.49999999999997).
+        (105, 4, 137),
+        (115, 4, 150),  # 149.5
+        (125, 2, 138),  # 137.5
+        (135, 2, 149),  # 148.5
+        (145, 2, 160),  # 159.5
+        (15, 2, 17),  # 16.5
+        (25, 4, 33),  # 32.5
+        (35, 6, 53),  # 52.5
+        (45, 8, 68),  # 67.5 (capped at x1.5)
+        (11, 6, 17),  # 16.5
+        # Not .5: plain rounding either way.
+        (101, 2, 111),  # 111.1
+        (109, 2, 120),  # 119.9
+        (150, 1, 150),
+        (0, 3, 0),
+    ],
+)
+def test_apply_streak_half_cases(base, streak, expected):
+    assert apply_streak(base, streak) == expected
+
+
+def test_apply_streak_is_exact_integer_formula():
+    # The frontend's applyStreak: (base * (10 + k) + 5) // 10 with k = min(5, streak - 1).
+    for base in range(1, 201):
+        for streak in range(1, 9):
+            k = min(5, streak - 1)
+            assert apply_streak(base, streak) == (base * (10 + k) + 5) // 10
+            assert streak_tenths(streak) == 10 + k
+
+
+def test_game_score_uses_exact_rounding():
+    # Streak 4 on 105 base points: 136.5 -> 137 (float maths gave 136).
+    rounds = [(True, 100), (True, 100), (True, 100), (True, 105)]
+    assert game_score(rounds) == 100 + 110 + 120 + 137
