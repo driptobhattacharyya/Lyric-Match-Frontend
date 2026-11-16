@@ -1,5 +1,4 @@
 import pytest
-
 from conftest import FIXTURE_CATALOG
 
 from lyric_match.hints import letters_hint, title_mask

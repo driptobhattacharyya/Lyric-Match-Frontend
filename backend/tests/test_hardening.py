@@ -69,7 +69,10 @@ def test_action_rate_limit_shared(make_app):
         client.post("/api/rounds/check", json={"roundToken": token, "guess": "x"}).status_code
         == 200
     )
-    assert client.post("/api/rounds/hint", json={"roundToken": token, "kind": "artist"}).status_code == 200
+    assert (
+        client.post("/api/rounds/hint", json={"roundToken": token, "kind": "artist"}).status_code
+        == 200
+    )
     response = client.post("/api/rounds/reveal", json={"roundToken": token})
     assert response.status_code == 429
     assert response.json["error"]["code"] == "rate_limited"
@@ -144,7 +147,11 @@ def test_disk_cache_loaded_and_used_without_key(make_app, tmp_path):
     path = tmp_path / "snippets.json"
     save_cache_file(
         path,
-        {"Hello Stranger|Placeholder Duo": ["placeholder cached line 1\nplaceholder cached line 2"]},
+        {
+            "Hello Stranger|Placeholder Duo": [
+                "placeholder cached line 1\nplaceholder cached line 2"
+            ]
+        },
     )
     app = make_app(SNIPPET_GENERATOR=GeminiGenerator(None, "m", 5), SNIPPET_CACHE_PATH=str(path))
     client = app.test_client()

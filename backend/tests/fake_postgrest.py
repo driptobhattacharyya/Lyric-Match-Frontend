@@ -34,7 +34,9 @@ class FakePostgrest:
         if route == ("GET", "snippets"):
             key = params["song_key"].removeprefix("eq.")
             rows = [r for r in reversed(self.snippets) if r["song_key"] == key]
-            return httpx2.Response(200, json=[{"lyrics": r["lyrics"]} for r in rows][: int(params["limit"])])
+            return httpx2.Response(
+                200, json=[{"lyrics": r["lyrics"]} for r in rows][: int(params["limit"])]
+            )
         if route == ("POST", "snippets"):
             assert params["on_conflict"] == "song_key,lyrics_hash"
             if not any(
@@ -51,7 +53,9 @@ class FakePostgrest:
             return httpx2.Response(201, json=[{"id": row["id"]}])
         if route == ("POST", "rpc/score_rank"):
             higher = [
-                r for r in self.scores if r["mode"] == body["p_mode"] and r["score"] > body["p_score"]
+                r
+                for r in self.scores
+                if r["mode"] == body["p_mode"] and r["score"] > body["p_score"]
             ]
             return httpx2.Response(200, json=1 + len(higher))
         if route == ("GET", "scores"):

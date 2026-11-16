@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#110d29"/>
+  <circle cx="1100" cy="40" r="420" fill="#9b7bff" opacity=".18"/>
+  <circle cx="60" cy="640" r="380" fill="#ff4f8b" opacity=".14"/>
+  <g transform="translate(120 175) scale(4.4)">
+    <path d="M20 4h24a16 16 0 0 1 16 16v14a16 16 0 0 1-16 16H30l-14 10 3-10.4A16 16 0 0 1 4 34V20A16 16 0 0 1 20 4Z" fill="#ff4f8b"/>
+    <circle cx="32" cy="27" r="16" fill="#110d29"/>
+    <circle cx="32" cy="27" r="6" fill="#ffd23f"/>
+  </g>
+  <text x="460" y="300" font-family="ui-rounded, 'Arial Rounded MT Bold', sans-serif" font-size="110" font-weight="700" fill="#f5f2ff">Lyric <tspan fill="#ff4f8b">Match</tspan></text>
+  <text x="464" y="380" font-family="ui-rounded, sans-serif" font-size="40" fill="#b8b1e8">Read the lyric. Name the song.</text>
+</svg>

@@ -11,7 +11,8 @@ export function TitleMask({ mask, baseMask }: Props) {
   const words = splitWords(mask)
   const letters = [...mask].filter((c) => c !== ' ').length
   const hidden = [...mask].filter((c) => c === '_').length
-  let offset = 0
+  // Start index of each word in the full mask, so letters line up with baseMask.
+  const starts = words.map((_, wi) => words.slice(0, wi).reduce((n, w) => n + w.length + 1, 0))
   return (
     <div
       className="flex flex-wrap justify-center gap-x-4 gap-y-2"
@@ -19,8 +20,7 @@ export function TitleMask({ mask, baseMask }: Props) {
       aria-label={`Title: ${letters} characters, ${hidden} hidden. ${mask.replace(/_/g, ' blank ')}`}
     >
       {words.map((word, wi) => {
-        const start = offset
-        offset += word.length + 1
+        const start = starts[wi]
         return (
           <span key={wi} className="flex gap-1">
             {[...word].map((ch, ci) => {

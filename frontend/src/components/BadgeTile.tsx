@@ -17,6 +17,8 @@ const LOOK: Record<BadgeId, { icon: IconName; tint: string }> = {
   speed_demon: { icon: 'bolt', tint: 'bg-sun' },
   platinum: { icon: 'disc', tint: 'bg-cloud' },
   three_day: { icon: 'calendar', tint: 'bg-mint' },
+  polyglot: { icon: 'globe', tint: 'bg-aqua' },
+  no_sweat: { icon: 'heart', tint: 'bg-coral' },
 }
 
 export function BadgeTile({ badge, earned, fresh = false, delay = 0 }: Props) {

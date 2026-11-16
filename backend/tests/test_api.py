@@ -40,9 +40,7 @@ def test_healthz(client):
 def test_healthz_and_503_without_any_provider(make_app):
     from lyric_match.llm import GeminiGenerator, OpenAIGenerator
 
-    app = make_app(
-        SNIPPET_GENERATOR=[GeminiGenerator(None, "m", 5), OpenAIGenerator(None, "m", 5)]
-    )
+    app = make_app(SNIPPET_GENERATOR=[GeminiGenerator(None, "m", 5), OpenAIGenerator(None, "m", 5)])
     client = app.test_client()
     assert client.get("/healthz").status_code == 200
     assert_error(client.post("/api/rounds", json={}), 503, "llm_unavailable")
@@ -150,9 +148,7 @@ def test_empty_packs_means_all(client):
 
 def test_unknown_pack_is_bad_request(client):
     assert_error(client.post("/api/rounds", json={"packs": ["nope"]}), 400, "bad_request")
-    assert_error(
-        client.post("/api/rounds", json={"packs": ["en-alpha", "zz"]}), 400, "bad_request"
-    )
+    assert_error(client.post("/api/rounds", json={"packs": ["en-alpha", "zz"]}), 400, "bad_request")
 
 
 def test_listed_but_missing_pack_is_bad_request_when_alone(client):
@@ -359,7 +355,9 @@ def test_check_hindi_spelling_variant(client, state):
             break
     else:
         pytest.skip("song not drawn")
-    response = client.post("/api/rounds/check", json={"roundToken": token, "guess": "chand kee rat"})
+    response = client.post(
+        "/api/rounds/check", json={"roundToken": token, "guess": "chand kee rat"}
+    )
     assert response.json["correct"] is True
 
 
@@ -372,9 +370,7 @@ def test_points_include_speed_and_hint_penalties(client, state, monkeypatch):
     token = _hint(client, token, kind="artist")["roundToken"]
     now = claims.issued_at + 22.5  # half of 45 s -> speed bonus 25
     monkeypatch.setattr(api_module.time, "time", lambda: now)
-    body = client.post(
-        "/api/rounds/check", json={"roundToken": token, "guess": claims.title}
-    ).json
+    body = client.post("/api/rounds/check", json={"roundToken": token, "guess": claims.title}).json
     assert body["points"] == 100 + 25 - 30 - 20
 
 

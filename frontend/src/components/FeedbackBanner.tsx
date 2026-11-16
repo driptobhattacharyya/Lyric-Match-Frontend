@@ -21,7 +21,12 @@ const MISS: Record<Exclude<RoundResult['outcome'], 'correct'>, string> = {
 export function FeedbackBanner({ result, gameOver, outOfHearts, onContinue }: Props) {
   const ok = result.outcome === 'correct'
   const { answer } = result
-  const title = ok ? (result.streak >= 3 ? `${result.streak} in a row!` : PRAISE[result.index % PRAISE.length]) : MISS[result.outcome]
+  const title =
+    result.outcome === 'correct'
+      ? result.streak >= 3
+        ? `${result.streak} in a row!`
+        : PRAISE[result.index % PRAISE.length]
+      : MISS[result.outcome]
   const cta = gameOver ? 'See results' : 'Continue'
   const details = [answer.film ? `Film: ${answer.film}` : null, answer.year ? String(answer.year) : null].filter(Boolean).join(' · ')
   return (

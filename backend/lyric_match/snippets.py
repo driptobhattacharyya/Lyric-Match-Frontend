@@ -186,7 +186,11 @@ class SnippetService:
             if generator.uses_quota and not self.budget.try_consume():
                 log.warning("llm_budget_exhausted")
                 return None
-            text = clean_snippet(generator.generate(song))
+            try:
+                text = clean_snippet(generator.generate(song))
+            except Exception as exc:  # adapters catch their own errors; belt and braces
+                log.warning("llm_generator_error song_id=%s error=%s", song.id, type(exc).__name__)
+                text = None
             if text:
                 return text, getattr(generator, "name", type(generator).__name__)
         return None
