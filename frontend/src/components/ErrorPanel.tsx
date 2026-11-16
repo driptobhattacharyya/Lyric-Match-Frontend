@@ -12,7 +12,7 @@ interface Props {
 const TITLES: Partial<Record<GameError['failure']['code'], string>> = {
   network: 'Lost the signal',
   timeout: 'The server is snoozing',
-  rate_limited: 'Easy, speedy!',
+  rate_limited: 'Slow down a beat',
   llm_unavailable: 'Lyric machine is busy',
   invalid_token: 'That round expired',
 }

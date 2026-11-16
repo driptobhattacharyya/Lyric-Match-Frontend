@@ -1,5 +1,5 @@
 import { AnimatePresence, m } from 'motion/react'
-import { useEffect, useEffectEvent, useState } from 'react'
+import { useCallback, useEffect, useEffectEvent, useState } from 'react'
 import { BadgeTile } from '../components/BadgeTile'
 import { Icon, type IconName } from '../components/Icon'
 import { IconButton } from '../components/IconButton'
@@ -57,6 +57,9 @@ export function ResultsScreen(props: Props) {
   })
   // Celebrate once, when the screen appears.
   useEffect(() => celebrate(), [])
+
+  // Focus Play again for keyboard players without scrolling the score out of view.
+  const focusOnMount = useCallback((el: HTMLButtonElement | null) => el?.focus({ preventScroll: true }), [])
 
   const share = async () => {
     const url = typeof window !== 'undefined' ? window.location.origin : ''
@@ -130,7 +133,7 @@ export function ResultsScreen(props: Props) {
             )}
 
             <div className="grid gap-3">
-              <button type="button" className="btn-chunk btn-sun min-h-16 w-full text-xl" onClick={props.onPlayAgain} autoFocus>
+              <button type="button" className="btn-chunk btn-sun min-h-16 w-full text-xl" onClick={props.onPlayAgain} ref={focusOnMount}>
                 <Icon name="replay" /> Play again
               </button>
               <div className="grid grid-cols-2 gap-3">

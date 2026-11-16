@@ -1,5 +1,5 @@
 import { AnimatePresence, m } from 'motion/react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { LeaderboardSheet, type OwnEntry } from './components/LeaderboardSheet'
 import { StatsSheet } from './components/StatsSheet'
 import { Toast } from './components/Toast'
@@ -45,6 +45,11 @@ export function App() {
         : phase === 'warming' && state.results.length === 0 && !state.round
           ? 'warming'
           : 'game'
+
+  // Each screen starts at the top (the previous one may have been scrolled).
+  useEffect(() => {
+    window.scrollTo({ top: 0 })
+  }, [screen])
 
   const play = () => {
     sfx.start()

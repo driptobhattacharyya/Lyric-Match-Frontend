@@ -75,6 +75,11 @@ export function GameScreen({ state, actions, meta }: Props) {
   useOnIncrease(round?.wrongGuesses.length ?? 0, () => sfx.wrong())
   useOnIncrease((round?.hints.lettersLevel ?? 0) + (round?.hints.artist ? 1 : 0), () => sfx.hint())
 
+  const roundId = round?.id
+  useEffect(() => {
+    if (roundId !== undefined) window.scrollTo({ top: 0 })
+  }, [roundId])
+
   const showRound = round && (phase === 'guessing' || phase === 'checking' || phase === 'feedback')
   const feedback = phase === 'feedback' && last ? last : null
   const currentIndex = round && phase !== 'feedback' ? round.index : results.length

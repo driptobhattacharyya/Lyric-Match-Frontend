@@ -87,12 +87,11 @@ export function ChoiceAnswers({ options, interactive, pending, wrong, answerTitl
               <button
                 type="button"
                 onClick={() => pick(opt)}
-                disabled={isWrong}
                 aria-disabled={!interactive || isWrong}
                 aria-label={`${i + 1}. ${opt}${isWrong ? ', wrong' : ''}${isAnswer ? ', correct answer' : ''}`}
                 className={`btn-chunk ${TONE[state]} min-h-16 w-full justify-start px-4 py-3 text-left normal-case ${
                   state === 'pending' ? 'animate-pulse' : ''
-                } ${!interactive && state === 'idle' ? 'cursor-default' : ''} ${isWrong ? 'line-through decoration-2' : ''}`}
+                } ${!interactive && state === 'idle' ? 'cursor-default' : ''} ${isWrong ? 'cursor-not-allowed' : ''}`}
               >
                 <kbd
                   className={`grid size-8 shrink-0 place-items-center rounded-lg border-2 font-display text-base ${
@@ -100,9 +99,13 @@ export function ChoiceAnswers({ options, interactive, pending, wrong, answerTitl
                   }`}
                   aria-hidden="true"
                 >
-                  {i + 1}
+                  {isWrong ? '✕' : i + 1}
                 </kbd>
-                <span className={`text-lg leading-tight font-semibold ${light ? 'text-cloud' : 'text-ink'}`}>{opt}</span>
+                <span
+                  className={`text-lg leading-tight font-semibold ${light ? 'text-cloud' : 'text-ink'} ${isWrong ? 'line-through decoration-ink/50 decoration-2' : ''}`}
+                >
+                  {opt}
+                </span>
               </button>
             </m.li>
           )
