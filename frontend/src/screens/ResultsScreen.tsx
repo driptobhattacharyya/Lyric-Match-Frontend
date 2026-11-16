@@ -6,7 +6,7 @@ import { IconButton } from '../components/IconButton'
 import { SubmitScore } from '../components/SubmitScore'
 import { XpBar } from '../components/XpBar'
 import { packName } from '../game/packs'
-import { BADGES, levelInfo, summarize } from '../game/progression'
+import { BADGES, levelInfo, levelProgressLabel, summarize } from '../game/progression'
 import type { State } from '../game/reducer'
 import type { Meta, RoundResult, ScoreSubmission } from '../game/types'
 import { useCountUp } from '../hooks/useCountUp'
@@ -207,7 +207,7 @@ function XpCard({ xpBefore, xpAfter }: { xpBefore: number; xpAfter: number }) {
       </div>
       <div className="min-w-0 flex-1 space-y-1.5">
         <div className="flex justify-between font-display text-sm font-semibold text-mist">
-          <span>{sameLevel ? 'Level progress' : `Level ${before.level} → ${after.level}`}</span>
+          <span>{levelProgressLabel(after)}</span>
           <span className="tabular-nums">
             {after.into}/{after.span} XP
           </span>

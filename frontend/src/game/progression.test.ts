@@ -6,6 +6,7 @@ import {
   daysBetween,
   emptyProfile,
   levelInfo,
+  levelProgressLabel,
   liveDailyStreak,
   parseProfile,
   xpForGame,
@@ -37,6 +38,13 @@ describe('levels', () => {
     expect(xpToNext(1)).toBe(100)
     expect(xpToNext(2)).toBe(150)
     expect(xpToNext(5)).toBe(300)
+  })
+
+  test('levelProgressLabel targets the next level', () => {
+    expect(levelProgressLabel(levelInfo(0))).toBe('Level 1 → 2')
+    const l2 = levelInfo(135)
+    expect(l2).toMatchObject({ level: 2, into: 35, span: 150 })
+    expect(levelProgressLabel(l2)).toBe('Level 2 → 3')
   })
 
   test('levelInfo boundaries', () => {

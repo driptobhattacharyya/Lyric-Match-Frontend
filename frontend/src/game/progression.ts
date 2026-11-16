@@ -62,6 +62,11 @@ export function levelInfo(totalXp: number): LevelInfo {
   return { level, into: rest, span, progress: rest / span }
 }
 
+/** Label for progress toward the NEXT level, e.g. "Level 2 → 3". Always based on the current level. */
+export function levelProgressLabel(info: Pick<LevelInfo, 'level'>): string {
+  return `Level ${info.level} → ${info.level + 1}`
+}
+
 export function xpForGame(score: number, correct: number, perfect: boolean): number {
   return (
     XP.perGame +
