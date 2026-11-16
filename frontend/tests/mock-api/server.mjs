@@ -7,6 +7,7 @@
  * Test controls (not part of the real API):
  *   POST /__mock/config {"healthDelayMs":0,"latencyMs":0,"down":false,"failNext":0,
  *                        "failCode":"rate_limited","failPath":"/api/rounds","leaderboard":true}
+ *   GET  /__mock/answer?token=…  (the title for a round token, for automated play)
  *   POST /__mock/seed    (adds fake leaderboard entries)
  *   POST /__mock/reset
  */
@@ -137,6 +138,11 @@ const server = http.createServer(async (req, res) => {
     cfg = { ...cfg, ...(body || {}) }
     if (body && 'healthDelayMs' in body) healthWoken = false
     return send(res, 200, cfg)
+  }
+  if (path === '/__mock/answer') {
+    const t = dec(url.searchParams.get('token'))
+    const song = t && SONGS.find((x) => x.songId === t.sid)
+    return send(res, song ? 200 : 404, { title: song ? song.title : null })
   }
   if (path === '/__mock/seed') {
     const names = ['Ana', 'Ravi', 'Mo', 'Kiko', 'Lena', 'Arjun', 'Sam', 'Priya', 'Tom', 'Zoe', 'Ishaan', 'Mei']
