@@ -76,7 +76,8 @@ in that round.
 
 ## POST /api/rounds/check
 
-Request: `{"roundToken": "…", "guess": "shake it off"}` (guess is 1 to 200 characters).
+Request: `{"roundToken": "…", "guess": "shake it off"}` (guess is 1 to 200 characters and not blank).
+A token whose round was already revealed is an `invalid_token` here and in `/api/rounds/hint`.
 
 Response when wrong: `{"correct": false, "answer": null, "points": 0, "receipt": null}`. The round continues.
 
@@ -108,17 +109,21 @@ The server computes the base points of a round and signs them into the `receipt`
 - `hintPenalty = 15 * highestLetterLevel + (20 if the artist hint was used)`.
 
 A game's score applies a streak multiplier to the base points, in play order: the n-th consecutive
-correct round is multiplied by `min(1.5, 1 + 0.1 * (n - 1))` and rounded. A miss resets the streak.
+correct round is multiplied by `min(1.5, 1 + 0.1 * (n - 1))`, rounded half up. A miss resets the streak.
+Both sides compute this in exact integers, never floats (`105 * 1.3` must give 137):
+`points = (base * (10 + k) + 5) // 10` with `k = min(5, n - 1)`.
 The client shows this as it goes; the server recomputes it from the receipts when a score is submitted.
 
 ## POST /api/scores
 
 Request: `{"name": "Dripto", "receipts": ["…", "…"]}`, receipts in play order.
 
-- `name`: 1 to 20 characters after trimming; letters, digits, spaces, `_`, `-` and `.` only.
+- `name`: trimmed and inner runs of whitespace collapsed to one space, then 1 to 20 characters;
+  ASCII letters `A-Z a-z`, digits, spaces, `_`, `-` and `.` only. Offensive names are a `bad_request`.
 - 1 to `roundsPerGame` receipts, all the same mode, all for different rounds, all issued within the last hour.
 
-Response: `{"id": "…", "score": 874, "rank": 12}`. Submitting the same game twice is a `duplicate_game`.
+Response: `{"id": "…", "score": 874, "rank": 12}`. Submitting the same game twice (the same set of
+rounds, in any order) is a `duplicate_game`. A tampered or expired receipt is an `invalid_token`.
 
 ## GET /api/leaderboard?mode=type&period=all&limit=20
 
@@ -127,3 +132,7 @@ Response: `{"id": "…", "score": 874, "rank": 12}`. Submitting the same game tw
 ```json
 {"entries": [{"rank": 1, "name": "Dripto", "score": 1104, "correct": 8, "rounds": 8, "createdAt": "2026-11-15T14:00:00Z"}]}
 ```
+
+Entries are sorted by score (ties: earliest first) with competition ranks ("1, 2, 2, 4"). The `rank`
+returned by `POST /api/scores` is 1 + the number of strictly higher scores in that mode. Invalid
+`mode`, `period` or `limit` is a `bad_request`.

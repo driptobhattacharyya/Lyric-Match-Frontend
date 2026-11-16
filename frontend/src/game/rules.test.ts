@@ -7,6 +7,32 @@ describe('streak multiplier (docs/api.md Scoring)', () => {
     expect(multiplierTenths(3)).toBe(12)
   })
 
+  test('applyStreak matches the backend table of exact .5 cases (backend/tests/test_scoring.py)', () => {
+    const cases: [number, number, number][] = [
+      [105, 4, 137],
+      [115, 4, 150],
+      [125, 2, 138],
+      [135, 2, 149],
+      [145, 2, 160],
+      [15, 2, 17],
+      [25, 4, 33],
+      [35, 6, 53],
+      [45, 8, 68],
+      [11, 6, 17],
+      [101, 2, 111],
+      [109, 2, 120],
+      [150, 1, 150],
+      [0, 3, 0],
+    ]
+    for (const [base, streak, expected] of cases) expect(applyStreak(base, streak)).toBe(expected)
+    for (let base = 1; base <= 200; base++) {
+      for (let streak = 1; streak <= 8; streak++) {
+        const k = Math.min(5, streak - 1)
+        expect(applyStreak(base, streak)).toBe(Math.floor((base * (10 + k) + 5) / 10))
+      }
+    }
+  })
+
   test('applyStreak multiplies and rounds half up without float drift', () => {
     expect(applyStreak(132, 1)).toBe(132)
     expect(applyStreak(132, 2)).toBe(145) // 145.2

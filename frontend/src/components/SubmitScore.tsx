@@ -33,7 +33,7 @@ export function SubmitScore({ receipts, initialName, onNameSaved, onSubmitted, o
     e.preventDefault()
     setTouched(true)
     if (localError || sub.status === 'sending' || sub.status === 'done') return
-    const clean = name.trim()
+    const clean = api.cleanName(name)
     onNameSaved(clean)
     ctrl.current?.abort()
     const c = new AbortController()
@@ -127,7 +127,7 @@ export function SubmitScore({ receipts, initialName, onNameSaved, onSubmitted, o
           className={`mt-2 text-sm ${shownError ? 'text-coral' : 'text-mist'}`}
           role={shownError ? 'alert' : undefined}
         >
-          {shownError ? shownError.message : 'Up to 20 letters, numbers, spaces, _ - or .'}
+          {shownError ? shownError.message : 'Up to 20 letters A-Z, numbers, spaces, _ - or .'}
         </m.p>
       </AnimatePresence>
     </section>

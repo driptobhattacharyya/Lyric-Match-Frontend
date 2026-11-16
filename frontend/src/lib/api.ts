@@ -293,11 +293,19 @@ export function toFailure(err: unknown): ApiFailure {
   return { code: 'internal_error', message: FRIENDLY.internal_error }
 }
 
-/** Mirrors the server's name rule: 1-20 chars after trimming; letters, digits, spaces, _ - . only. */
+/** The name as the server stores it: trimmed, inner runs of whitespace collapsed to one space. */
+export function cleanName(raw: string): string {
+  return raw.trim().split(/\s+/).filter(Boolean).join(' ')
+}
+
+/**
+ * Mirrors the server's name rule (backend/lyric_match/leaderboard.py `clean_name`):
+ * 1-20 chars after cleaning; ASCII letters, digits, spaces, _ - . only.
+ */
 export function validateName(raw: string): string | null {
-  const name = raw.trim()
+  const name = cleanName(raw)
   if (!name) return 'Enter a name first.'
   if (name.length > 20) return 'Keep it to 20 characters.'
-  if (!/^[\p{L}\p{N} _.-]+$/u.test(name)) return 'Letters, numbers, spaces, _ - and . only.'
+  if (!/^[A-Za-z0-9 _.-]+$/.test(name)) return 'Letters A-Z, numbers, spaces, _ - and . only.'
   return null
 }
