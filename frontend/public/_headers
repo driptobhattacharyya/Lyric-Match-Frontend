@@ -1,0 +1,19 @@
+# Cloudflare Workers static assets headers (https://developers.cloudflare.com/workers/static-assets/headers/)
+# Every matching rule applies, so /* is for security headers only; caching is set per path below.
+#
+# CSP notes:
+#  - The backend URL is the build-time env var VITE_API_URL, so connect-src allows https://*.onrender.com.
+#    If the API moves to another origin, add it to connect-src here.
+#  - Fonts are self-hosted (@fontsource, emitted to /assets), so font-src is 'self'.
+#  - style-src needs 'unsafe-inline' because React/framer-motion write inline style="" attributes at runtime.
+#  - No inline <script> in the built HTML, so script-src stays 'self'.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://*.onrender.com; manifest-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=(), interest-cohort=()
+  X-Frame-Options: DENY
+
+# Vite emits content-hashed filenames here.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

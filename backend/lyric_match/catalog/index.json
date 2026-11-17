@@ -1,0 +1,21 @@
+{
+  "languages": [
+    {"id": "en", "name": "English"},
+    {"id": "hi", "name": "Hindi"}
+  ],
+  "packs": [
+    {"id": "en-pop-2010s", "name": "Pop: 2010s to now", "language": "en"},
+    {"id": "en-pop-2000s", "name": "Pop: 2000s", "language": "en"},
+    {"id": "en-pop-80s90s", "name": "Pop: 80s & 90s", "language": "en"},
+    {"id": "en-rock-classic", "name": "Classic Rock", "language": "en"},
+    {"id": "en-rock-modern", "name": "Modern Rock", "language": "en"},
+    {"id": "en-hiphop-rnb", "name": "Hip-Hop & R&B", "language": "en"},
+    {"id": "en-country-folk", "name": "Country & Folk", "language": "en"},
+    {"id": "en-soul-dance", "name": "Soul, Funk & Dance", "language": "en"},
+    {"id": "hi-bollywood-2010s", "name": "Bollywood: 2010s to now", "language": "hi"},
+    {"id": "hi-bollywood-2000s", "name": "Bollywood: 2000s", "language": "hi"},
+    {"id": "hi-bollywood-90s", "name": "Bollywood: 90s", "language": "hi"},
+    {"id": "hi-bollywood-classics", "name": "Bollywood Classics", "language": "hi"},
+    {"id": "hi-indie", "name": "Indie, Pop & Sufi", "language": "hi"}
+  ]
+}

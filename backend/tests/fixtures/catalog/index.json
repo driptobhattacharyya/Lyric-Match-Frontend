@@ -1,0 +1,11 @@
+{
+  "languages": [{"id": "en", "name": "English"}, {"id": "hi", "name": "Hindi"}],
+  "packs": [
+    {"id": "en-alpha", "name": "Alpha Hits", "language": "en"},
+    {"id": "en-beta", "name": "Beta Hits", "language": "en"},
+    {"id": "en-missing", "name": "Not Written Yet", "language": "en"},
+    {"id": "en-broken", "name": "Half Written", "language": "en"},
+    {"id": "hi-one", "name": "Filmi One", "language": "hi"},
+    {"id": "hi-two", "name": "Filmi Two", "language": "hi"}
+  ]
+}
